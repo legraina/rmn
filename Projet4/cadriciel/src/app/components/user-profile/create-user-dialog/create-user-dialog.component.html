@@ -1,0 +1,37 @@
+<div class="container">
+    <h1>Création d'un compte utilisateur</h1>
+
+    <div class="input">
+        <mat-form-field appearance="outline">
+            <mat-label>Entrez le nom de l'utilisateur</mat-label>
+            <input matInput [(ngModel)]="this.username" minlength="1" (keypress)="updateCharacters($event)">
+        </mat-form-field>
+    </div>
+    <div class="input">
+        <mat-form-field appearance="outline">
+            <mat-label>Entrez le mot de passe</mat-label>
+            <input [(ngModel)]="this.pass" minlength="1" maxlength="32" matInput [type]="hideNewPass ? 'password' : 'text'" (keypress)="updateCharacters($event)">
+            <mat-icon matSuffix (click)="hideNewPass = !hideNewPass" [attr.aria-label]="'Hide password'" [attr.aria-pressed]="hideNewPass">{{hideNewPass ? 'visibility_off' : 'visibility'}}</mat-icon>
+        </mat-form-field>
+    </div>
+    <div class="input">
+        <mat-form-field appearance="outline">
+            <mat-label>Répétez le mot de passe</mat-label>
+            <input [(ngModel)]="this.passRepeat" minlength="1" maxlength="32" matInput [type]="hideNewPass2 ? 'password' : 'text'" (keypress)="updateCharacters($event)"/>
+            <mat-icon matSuffix (click)="hideNewPass2 = !hideNewPass2" [attr.aria-label]="'Hide password'" [attr.aria-pressed]="hideNewPass2">{{hideNewPass2 ? 'visibility_off' : 'visibility'}}</mat-icon>
+        </mat-form-field>
+    </div>
+    <div class="input">
+        <mat-form-field appearance="fill">
+            <mat-label>Select an option</mat-label>
+            <mat-select [(value)]="selected">
+              <mat-option value="Administrateur">Administrateur</mat-option>
+              <mat-option value="Utilisateur">Utilisateur</mat-option>
+            </mat-select>
+        </mat-form-field>
+    </div>
+    <div class="button-div">
+        <button class="button" mat-flat-button color="accent" (click)="attemptCreate()">CRÉER</button>
+    </div>
+
+</div>

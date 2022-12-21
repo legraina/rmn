@@ -1,0 +1,32 @@
+services:
+  redis:
+    image: redis:4.0.6-alpine
+    ports:
+      - "6379:6379"
+  executor:
+    build: ./Executor
+    image: scapist/executor:latest
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./Executor:/Executor
+    depends_on:
+      - redis
+  server:
+    build: ./Server
+    image: scapist/server:latest
+    ports:
+      - "5000:5000"
+    network_mode: "host"
+    depends_on:
+      - redis
+    volumes:
+      - ./Server:/Server
+  socketio:
+    build: ./SocketIO
+    image: scapist/socketio:latest
+    ports:
+      - '7000:7000'
+    network_mode: "host"
+    volumes:
+      - ./SocketIO:/SocketIO
