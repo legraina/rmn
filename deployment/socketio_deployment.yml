@@ -32,7 +32,7 @@ spec:
             com.docker.project: socketio
     spec:
         containers:
-            - image: scapist/socketio
+            - image: legraina/socketio
               name: socketio
               ports:
                 - containerPort: 7000

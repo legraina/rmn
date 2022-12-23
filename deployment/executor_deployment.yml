@@ -16,8 +16,8 @@ spec:
     template:
       spec:
         containers:
-        - name: scapist-executor
-          image: scapist/executor
+        - name: legraina-executor
+          image: legraina/executor
           imagePullPolicy: Never
           ports:
             - containerPort: 5000
@@ -26,7 +26,7 @@ spec:
             limits:
               memory: "10240Mi"
         restartPolicy: Never
-    backoffLimit: 0  
+    backoffLimit: 0
   pollingInterval: 1
   maxReplicaCount: 1
   successfulJobsHistoryLimit: 2

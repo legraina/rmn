@@ -32,7 +32,7 @@ spec:
             com.docker.project: rmn-webapp
     spec:
         containers:
-            - image: scapist/rmn-webapp
+            - image: legraina/rmn-webapp
               name: rmn-webapp
               imagePullPolicy: Always
               ports:

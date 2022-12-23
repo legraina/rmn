@@ -32,7 +32,7 @@ spec:
             com.docker.project: server
     spec:
         containers:
-            - image: scapist/server
+            - image: legraina/server
               name: server
               ports:
                 - containerPort: 5000
