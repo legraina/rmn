@@ -3,6 +3,7 @@ import traceback
 import unidecode
 import os
 import subprocess
+import shutil
 
 from colorama import Fore, Style
 from pathlib import Path
@@ -19,6 +20,7 @@ class FrontPageHandler:
         for folder in folders:
             folder_path = os.path.join(input_folder, folder)
             if os.path.isfile(folder_path):
+                os.remove(folder_path)
                 continue
 
             files = os.listdir(folder_path)
@@ -37,7 +39,7 @@ class FrontPageHandler:
             fullname, _id, matricule, _a, _f, _ = folder.split("_")
             tempname = "_".join(fullname.split(" "))
             name = os.path.join(
-                folder_path,
+                input_folder,
                 f"{tempname}_{str(matricule)}{f'_{suffix}.pdf' if suffix else file}",
             )
 
@@ -50,6 +52,9 @@ class FrontPageHandler:
                 name=fullname,
                 mat=matricule,
             )
+
+            # remove folder
+            shutil.rmtree(str(folder_path))
 
     def copy_file_with_front_page(
         self,

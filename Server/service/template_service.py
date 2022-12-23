@@ -11,8 +11,8 @@ TEMP_FOLDER = Path(__file__).resolve().parent.joinpath("temp")
 
 class TemplateService() :
 
-    def create_template(request, db, firebaseConfig) : 
-        
+    def create_template(request, db, firebaseConfig) :
+
         request_form = request.form
 
         if "user_id" not in request_form:
@@ -26,7 +26,7 @@ class TemplateService() :
                 response=json.dumps({"response": f"Error: matricule_box not provided."}),
                 status=400,
             )
-        
+
         template_name = request_form['template_name'] if "template_name" in request_form else "Template"
         print(request_form['matricule_box'])
         matricule_box = convert_box_to_list(json.loads(request_form['matricule_box'])) if "matricule_box" in request_form else None
@@ -108,7 +108,7 @@ class TemplateService() :
     def delete_template(request, db, firebaseConfig) :
         request_form = request.form
 
-        if "template_id" not in request_form: 
+        if "template_id" not in request_form:
             return Response(
                 response=json.dumps({"response": f"Error: template_id not provided."}),
                 status=400,
@@ -154,7 +154,7 @@ class TemplateService() :
         templates = collection.find({"user_id": user_id})
 
         user_templates_list = [
-            { 
+            {
             "template_name": template['template_name'],
             "template_id": template['template_id']
             }
@@ -193,7 +193,7 @@ class TemplateService() :
         }
 
         return Response(response=json.dumps({"response": template_resp}), status=200)
-    
+
     def download_template_file(request, db, firebaseConfig) :
         request_form = request.form
 
@@ -203,7 +203,7 @@ class TemplateService() :
                 response=json.dumps({"response": f"Error: template_id not provided."}),
                 status=400,
             )
-        
+
         template_id = str(request_form["template_id"])
         firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
 
@@ -217,7 +217,7 @@ class TemplateService() :
         os.remove(filepath)
 
         return file_send
-    
+
     def change_template_info(request, db) :
         request_form = request.form
 
@@ -227,7 +227,7 @@ class TemplateService() :
         #         response=json.dumps({"response": f"Error: Missing value in request form"}),
         #         status=400,
         #     )
-        
+
         template_name = request_form['template_name']
         matricule_box = convert_box_to_list(json.loads(request_form['matricule_box']))
         grade_box = convert_box_to_list(json.loads(request_form['grade_box']))

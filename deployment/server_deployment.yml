@@ -44,4 +44,5 @@ spec:
                   port: 5000
                 initialDelaySeconds: 30
                 periodSeconds: 10
+        restartPolicy: Always
 status: {}

@@ -38,4 +38,5 @@ spec:
                 - containerPort: 7000
                   protocol: TCP
               resources: {}
+        restartPolicy: Always
 status: {}

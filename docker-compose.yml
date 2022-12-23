@@ -2,13 +2,25 @@ version: '3'
 services:
   redis:
     image: redis:4.0.6-alpine
-    # ports:
-    #   - "6379:6379"
+    restart: always
+    ports:
+      - "6379:6379"
+  mongo:
+    image: mongo:6.0.3
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    volumes:
+      - mongodata:/data/db 
+    ports:
+      - "27017:27017"
   executor:
     build: ./Executor
     image: legraina/executor:latest
-    # ports:
-    #   - "5001:5001"
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
     volumes:
       - ./Executor:/Executor
     depends_on:
@@ -16,9 +28,10 @@ services:
   server:
     build: ./Server
     image: legraina/server:latest
-    # ports:
-    #   - "5000:5000"
-    # network_mode: "host"
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    network_mode: "host"
     depends_on:
       - redis
     volumes:
@@ -26,8 +39,9 @@ services:
   socketio:
     build: ./SocketIO
     image: legraina/socketio:latest
-    # ports:
-    #   - '7000:7000'
-    # network_mode: "host"
+    restart: unless-stopped
+    ports:
+      - '7000:7000'
+    network_mode: "host"
     volumes:
       - ./SocketIO:/SocketIO
