@@ -2,11 +2,11 @@
 
 FROM ubuntu:22.04
 
-ENV DEBIAN_FRONTEND=noninteractive 
+ENV DEBIAN_FRONTEND=noninteractive
 
-ENV ENVIRONNEMENT=production 
+ENV ENVIRONNEMENT=production
 
-RUN apt-get update \ 
+RUN apt-get update \
     && apt-get install -y python3-pip \
     && apt-get install -y poppler-utils \
     && apt-get install -y build-essential \
@@ -15,12 +15,14 @@ RUN apt-get update \
 
 WORKDIR /Executor
 
-COPY . .
+COPY ./requirements.txt ./requirements.txt
 
 RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
 
 RUN pip uninstall -y PyCrypto
 RUN pip install PyCryptodome
+
+COPY . .
 
 CMD ["python3", "-m", "job_executor"]

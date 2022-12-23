@@ -2,13 +2,13 @@
 
 FROM python:3.9
 
-ENV ENVIRONNEMENT=production 
+ENV ENVIRONNEMENT=production
 
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /Server
 
-COPY . .
+COPY ./requirements.txt ./requirements.txt
 
 RUN apt-get update \
  && apt-get install -y sudo
@@ -26,5 +26,7 @@ RUN pip install httplib2==0.15.0
 
 RUN sudo apt install -y texlive-latex-recommended
 RUN sudo apt-get install -y texlive-lang-french
+
+COPY . .
 
 CMD ["python", "-m", "flask", "run", "--host=0.0.0.0"]
