@@ -32,7 +32,7 @@ spec:
             com.docker.project: server
     spec:
         containers:
-            - image: legraina/server
+            - image: rmni/server
               name: server
               ports:
                 - containerPort: 5000

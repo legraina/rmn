@@ -12,12 +12,12 @@ services:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: example
     volumes:
-      - mongodata:/data/db 
+      - mongodata:/data/db
     ports:
       - "27017:27017"
   executor:
     build: ./Executor
-    image: legraina/executor:latest
+    image: rmni/executor:latest
     restart: unless-stopped
     ports:
       - "5001:5001"
@@ -27,7 +27,7 @@ services:
       - redis
   server:
     build: ./Server
-    image: legraina/server:latest
+    image: rmni/server:latest
     restart: unless-stopped
     ports:
       - "5000:5000"
@@ -38,7 +38,7 @@ services:
       - ./Server:/Server
   socketio:
     build: ./SocketIO
-    image: legraina/socketio:latest
+    image: rmni/socketio:latest
     restart: unless-stopped
     ports:
       - '7000:7000'

@@ -16,8 +16,8 @@ spec:
     template:
       spec:
         containers:
-        - name: legraina-executor
-          image: legraina/executor
+        - name: executor
+          image: rmni/executor
           imagePullPolicy: Never
           ports:
             - containerPort: 5000
