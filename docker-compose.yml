@@ -3,8 +3,8 @@ services:
   redis:
     image: redis:4.0.6-alpine
     restart: always
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
   mongo:
     image: mongo:6.0.3
     restart: always
@@ -19,8 +19,8 @@ services:
     build: ./Executor
     image: rmni/executor:latest
     restart: unless-stopped
-    ports:
-      - "5001:5001"
+    # ports:
+    #   - "5001:5001"
     volumes:
       - ./Executor:/Executor
     depends_on:
@@ -29,9 +29,9 @@ services:
     build: ./Server
     image: rmni/server:latest
     restart: unless-stopped
-    ports:
-      - "5000:5000"
-    network_mode: "host"
+    # ports:
+    #   - "5000:5000"
+    # network_mode: "host"
     depends_on:
       - redis
     volumes:
@@ -40,8 +40,8 @@ services:
     build: ./SocketIO
     image: rmni/socketio:latest
     restart: unless-stopped
-    ports:
-      - '7000:7000'
-    network_mode: "host"
+    # ports:
+    #   - '7000:7000'
+    # network_mode: "host"
     volumes:
       - ./SocketIO:/SocketIO

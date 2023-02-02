@@ -5,7 +5,7 @@ metadata:
   name: rmn-webapp
 spec:
   ports:
-    - name: 5000-tcp
+    - name: 80-tcp
       port: 80
       protocol: TCP
       targetPort: 80
