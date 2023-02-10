@@ -1,12 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { SERVER_URL } from '../utils';
 
 
 @Injectable({
   providedIn: 'root'
 })
-export class UserService {
+export class UserService implements CanActivate {
 
   currentUsername: string = "bob2";
   //#TODO
@@ -65,5 +66,8 @@ export class UserService {
     return this.http.put(url, formdata);
   }
 
-
+  canActivate(route: ActivatedRouteSnapshot,
+              state: RouterStateSnapshot): boolean {
+      return this.currentUsername != null;
+  }
 }

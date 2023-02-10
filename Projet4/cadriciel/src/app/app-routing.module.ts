@@ -1,6 +1,5 @@
 import { NgModule } from '@angular/core';
-import { Injectable } from '@angular/core';
-import { RouterModule, Routes, Router, CanActivate, ActivatedRouteSnapshot,RouterStateSnapshot } from '@angular/router';
+import { RouterModule, Routes } from '@angular/router';
 import { LoginPageComponent } from './components/login-page/login-page.component';
 import { MainMenuComponent } from './components/main-menu/main-menu.component';
 import { NewCorrectionComponent } from './components/new-correction/new-correction.component';
@@ -14,17 +13,6 @@ import { UserGuideComponent } from './components/user-guide/user-guide.component
 import { UserService } from './services/user.service';
 
 
-@Injectable()
-export class LoggedGuardService implements CanActivate {
-    constructor(private _router:Router, private userService: UserService) {}
-
-    canActivate(route: ActivatedRouteSnapshot,
-                state: RouterStateSnapshot): boolean {
-        return this.userService.currentUsername != null;
-    }
-}
-
-
 // This is my case
 const routes: Routes = [
     {
@@ -34,52 +22,52 @@ const routes: Routes = [
     {
         path: 'main-menu',
         component : MainMenuComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: 'new-correction',
         component : NewCorrectionComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: 'tasks-history',
         component : TasksHistoryComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: 'templates',
         component : TemplatesPageComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: 'template-editor',
         component : TemplateEditorComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: 'task-validation',
         component : TaskVerificationComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: 'presentation-page',
         component : PresentationPageComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: 'user-profile',
         component : UserProfileComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: 'user-guide',
         component : UserGuideComponent,
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: '**',
         redirectTo : 'main-menu',
-        canActivate: [LoggedGuardService]
+        canActivate: [UserService]
     },
     {
         path: '**',
