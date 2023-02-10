@@ -21,7 +21,7 @@ spec:
               claimName: nfs-pvc
         containers:
           - name: executor
-            image: rmni/executor
+            image: rmni/executor:latest
             imagePullPolicy: Never
             ports:
               - containerPort: 5000

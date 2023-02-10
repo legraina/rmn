@@ -3,8 +3,8 @@ from werkzeug.security import generate_password_hash,check_password_hash
 
 
 class UserService() :
-        
-    def login(request, database): 
+
+    def login(request, database):
         request_form = request.form
         if "username" not in request_form:
             return Response(
@@ -21,7 +21,7 @@ class UserService() :
         password = request_form['password']
         collection = database["users"]
         userDB = collection.find_one({"username": username})
-        if userDB is None : 
+        if userDB is None :
             return Response(
                 response=json.dumps({"response": f"Nom d'utilisateur/Mot de passe invalide"}),
                 status=404,
@@ -43,9 +43,9 @@ class UserService() :
                 response=json.dumps({"response": f"Nom d'utilisateur/Mot de passe invalide"}),
                 status=404,
             )
-    
 
-    def signup(request, database): 
+
+    def signup(request, database):
         request_form = request.form
         if "username" not in request_form:
             return Response(
@@ -67,18 +67,17 @@ class UserService() :
         password = request_form['password']
         role = request_form['role']
 
-        #TODO check if admin 
+        #TODO check if admin
         collection = database["users"]
 
         isUserExisting = collection.count_documents({"username": username}) > 0
-        print(isUserExisting)
         if isUserExisting : 
             return Response(
                 response=json.dumps({"response": f"Nom d'utilisateur existant"}),
                 status=404,
             )
-        
-        hashed_password = generate_password_hash(password, method='sha256') 
+
+        hashed_password = generate_password_hash(password, method='sha256')
 
         user = {
             "username": username,
@@ -94,7 +93,7 @@ class UserService() :
             status=200
         )
 
-    def update_save_verified_images(request, database): 
+    def update_save_verified_images(request, database):
         request_form = request.form
         if "username" not in request_form:
             return Response(
@@ -112,14 +111,14 @@ class UserService() :
         collection = database["users"]
 
         user = { "$set": { 'saveVerifiedImages': save_verified_images } }
-        
+
         collection.update_one({'username': username}, user)
 
         return Response(
             response=json.dumps({"response": f'Utilisateur mise-à-jour'}),
         )
 
-    def update_moodle_structure_ind(request, database): 
+    def update_moodle_structure_ind(request, database):
         request_form = request.form
         if "username" not in request_form:
             return Response(
@@ -137,14 +136,14 @@ class UserService() :
         collection = database["users"]
 
         user = { "$set": { 'moodleStructureInd': moodle_structure_ind } }
-        
+
         collection.update_one({'username': username}, user)
 
         return Response(
             response=json.dumps({"response": f'Utilisateur mise-à-jour'}),
         )
 
-    def change_password(request, database): 
+    def change_password(request, database):
         request_form = request.form
         if "username" not in request_form:
             return Response(
@@ -176,21 +175,17 @@ class UserService() :
                 status=500
                 )
 
-        
+
         collection.update_one(
             {
                 'username': username
-            }, 
-            { 
+            },
+            {
                 "$set": { 'password': generate_password_hash(new_password, method='sha256')  }
             }
         )
-        
+
         return Response(
                 response=json.dumps({"response": 'Le mot de Passe a été modifié!'}),
                 status=200
                 )
-        
-
-        
-

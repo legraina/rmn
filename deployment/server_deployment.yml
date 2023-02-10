@@ -34,8 +34,9 @@ spec:
           persistentVolumeClaim:
             claimName: nfs-pvc
       containers:
-        - image: rmni/server
+        - image: rmni/server:latest
           name: server
+          imagePullPolicy: Always
           ports:
             - containerPort: 5000
               protocol: TCP
