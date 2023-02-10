@@ -15,27 +15,27 @@ export class UserService {
   moodleStructureInd: boolean = false;
 
   constructor(private http: HttpClient) {
-    
+
     this.currentUsername = localStorage.getItem('user_id')
     this.role = localStorage.getItem('role')
-    
+
     let saveImages = localStorage.getItem('saveVerifiedImages')
     this.saveVerifiedImages = (saveImages && saveImages != "undefined") ? JSON.parse(localStorage.getItem('saveVerifiedImages')) : false
 
     let moodleInd = localStorage.getItem('moodleStructureInd')
     this.moodleStructureInd = (moodleInd && moodleInd != "undefined") ? JSON.parse(localStorage.getItem('moodleStructureInd')) : false
   }
-  
-  login(username, password) { 
+
+  login(username, password) {
     const formdata: FormData = new FormData();
     formdata.append('username', username);
     formdata.append('password', password);
     let url = SERVER_URL + "login"
-    
+
     return this.http.post(url, formdata)
   }
 
-  signup(username, password, role) { 
+  signup(username, password, role) {
     const formdata: FormData = new FormData();
     formdata.append('username', username);
     formdata.append('password', password);

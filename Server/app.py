@@ -7,6 +7,7 @@ from flask_cors import CORS, cross_origin
 from werkzeug.utils import secure_filename
 from pathlib import Path
 from utils.utils import Job_Status, Output_File, Document_Status
+from utils.storage import Storage
 from datetime import datetime, timezone
 from io import FileIO
 from PyPDF2 import PdfFileWriter, PdfFileReader
@@ -24,29 +25,18 @@ import socketio
 import shutil
 import time
 
-import pyrebase
 
-firebaseConfig = {
-    "apiKey": "AIzaSyAPHNsT4BQjbvC_NNgu0BB3YXPZy1vioNU",
-    "authDomain": "projet4-bcfe5.firebaseapp.com",
-    "projectId": "projet4-bcfe5",
-    "storageBucket": "projet4-bcfe5.appspot.com",
-    "messagingSenderId": "171342986362",
-    "appId": "1:171342986362:web:018b05e620c609a2ce0fc3",
-    "measurementId": "G-E9P71RH1DF",
-    "databaseURL": "",
-    "serviceAccount": str(Path(__file__).parent.joinpath("config").joinpath("projet4_service_account.json"))
-}
+ROOT_DIR = Path(__file__).resolve().parent
 
-TEMP_FOLDER = Path(__file__).resolve().parent.joinpath("temp")
+TEMP_FOLDER = ROOT_DIR.joinpath("temp")
 
-VALIDATE_TEMP_FOLDER = Path(__file__).resolve().parent.joinpath("validate_temp_folder")
+VALIDATE_TEMP_FOLDER = ROOT_DIR.joinpath("validate_temp_folder")
 
-CONFIG_FILE = Path(__file__).resolve().parent.joinpath("config").joinpath("config.ini")
+CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
 
-FRONT_PAGE_TEMP_FOLDER = Path(__file__).resolve().parent.joinpath("front_page_temp")
+FRONT_PAGE_TEMP_FOLDER = ROOT_DIR.joinpath("front_page_temp")
 
-LATEX_INPUT_FILE = Path(__file__).resolve().parent.joinpath("data.tex")
+LATEX_INPUT_FILE = ROOT_DIR.joinpath("data.tex")
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -66,6 +56,7 @@ socketio_host = (
 
 r = redis.Redis(host=redis_host, port=6379, db=0)
 
+storage = Storage()
 
 @app.route("/")
 def say_hello():
@@ -179,7 +170,7 @@ def evaluate():
 
     path_on_cloud_csv = "csv/"
     notes_file_id = f"{path_on_cloud_csv}{job_id}.csv"
-    
+
     job = {
         "job_id": job_id,
         "job_name": job_name,
@@ -266,14 +257,14 @@ def evaluate():
 
     sio.disconnect()
 
-    thread = Thread(target=evaluate_thread, 
+    thread = Thread(target=evaluate_thread,
     kwargs={
         "job_id": job_id,
         "notes_file_id": notes_file_id,
-        "zip_file_id": zip_file_id, 
-        "job": job, 
-        "user_id": user_id, 
-        "zip_file_name": zip_file_name, 
+        "zip_file_id": zip_file_id,
+        "job": job,
+        "user_id": user_id,
+        "zip_file_name": zip_file_name,
         "notes_csv_file_name": notes_csv_file_name,
         "is_pdf_file": is_pdf_file
 
@@ -285,12 +276,10 @@ def evaluate():
 def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_name, notes_csv_file_name, is_pdf_file):
     try:
         file_name = str(TEMP_FOLDER.joinpath(zip_file_name))
-        firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
-
-        firebase_storage.child(zip_file_id).put(file_name)
+        storage.move_to(file_name, zip_file_id)
 
         file_name = str(TEMP_FOLDER.joinpath(notes_csv_file_name))
-        firebase_storage.child(notes_file_id).put(file_name)
+        storage.move_to(file_name, notes_file_id)
     except Exception as e:
         print(e, "311")
 
@@ -342,7 +331,7 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
 @cross_origin()
 def create_template():
     db = mongo_client["RMN"]
-    return TemplateService.create_template(request, db, firebaseConfig)
+    return TemplateService.create_template(request, db, storage)
 
 
 @app.route("/user/template", methods=["POST"])
@@ -356,7 +345,7 @@ def get_all_template_info():
 @cross_origin()
 def delete_template():
     db = mongo_client["RMN"]
-    return TemplateService.delete_template(request, db, firebaseConfig)
+    return TemplateService.delete_template(request, db, storage)
 
 
 @app.route("/template/info", methods=["POST"])
@@ -370,7 +359,7 @@ def get_template_info():
 @cross_origin()
 def download_template():
     db = mongo_client["RMN"]
-    return TemplateService.download_template_file(request, db, firebaseConfig)
+    return TemplateService.download_template_file(request, db, storage)
 
 
 @app.route("/template/modify", methods=["POST"])
@@ -463,8 +452,6 @@ def download_file():
     db = mongo_client["RMN"]
     output_collection = db["jobs_output"]
 
-    firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
-
     #
     output_files = output_collection.find_one({"job_id": job_id})
 
@@ -490,7 +477,7 @@ def download_file():
 
     # Save file to local
     filepath = str(TEMP_FOLDER.joinpath(file_id.split("/")[1]))
-    firebase_storage.child(file_id).download(filepath)
+    storage.copy_from(file_id, filepath)
     print("file created")
 
     file_send = send_file(filepath)
@@ -681,8 +668,6 @@ def download_document():
             status=404,
         )
 
-    firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
-
     if not os.path.exists("documents"):
             os.mkdir("documents")
 
@@ -690,7 +675,7 @@ def download_document():
 
     # Save file to local
     print("file_id", file_id)
-    firebase_storage.child(file_id).download(str(file_id))
+    storage.copy_from(file_id, str(file_id))
     print("file created")
 
     file_send = send_file(str(file_id))
@@ -812,7 +797,6 @@ def delete():
     db = mongo_client["RMN"]
     collection_eval_jobs = db["eval_jobs"]
     collection_output = db["jobs_output"]
-    firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
 
     try:
         for f in [
@@ -822,8 +806,7 @@ def delete():
             ),
             ("output_zip/", ".zip"),
         ]:
-            fullpath = f"{f[0]}{job_id}{f[1]}"
-            firebase_storage.delete(fullpath)
+            storage.remove(f"{f[0]}{job_id}{f[1]}")
     except Exception as e:
         print(e)
 
@@ -901,7 +884,7 @@ def front_page():
 
     # Copy latex_input_file in temp_folder
     shutil.copy(LATEX_INPUT_FILE, current_temp_folder)
-    
+
     moodle_zip_filepath = str(current_temp_folder.joinpath(moodle_zip_name))
     latex_front_page_filepath = str(current_temp_folder.joinpath(latex_front_page_name))
     latex_input_file_filepath = str(current_temp_folder.joinpath("data.tex"))

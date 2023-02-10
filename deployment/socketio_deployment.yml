@@ -11,9 +11,7 @@ spec:
       targetPort: 7000
   selector:
     com.docker.project: socketio
-  type: LoadBalancer
-status:
-  loadBalancer: {}
+  type: NodePort
 ---
 apiVersion: apps/v1
 kind: Deployment

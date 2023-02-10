@@ -7,37 +7,22 @@ import cv2
 from pymongo import MongoClient
 from pathlib import Path
 from utils.utils import Document_Status, Job_Status
-import pyrebase
+from utils.storage import Storage, ROOT_DIR
 
-CONFIG_FILE = (
-    Path(__file__)
-    .resolve()
-    .parent.parent.parent.joinpath("config")
-    .joinpath("config.ini")
-)
+
+CONFIG_FILE = (ROOT_DIR.joinpath("config").joinpath("config.ini"))
 
 parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 parser.read(CONFIG_FILE)
 
 URL = parser.get("MONGODB", "URL")
 
-firebaseConfig = {
-    "apiKey": "AIzaSyAPHNsT4BQjbvC_NNgu0BB3YXPZy1vioNU",
-    "authDomain": "projet4-bcfe5.firebaseapp.com",
-    "projectId": "projet4-bcfe5",
-    "storageBucket": "projet4-bcfe5.appspot.com",
-    "messagingSenderId": "171342986362",
-    "appId": "1:171342986362:web:018b05e620c609a2ce0fc3",
-    "measurementId": "G-E9P71RH1DF",
-    "databaseURL": "",
-}
-
 
 class Database:
-    def __init__(self, db_name):
+    def __init__(self, db_name, storage_path = None):
         self.mongo_client = MongoClient(URL)
         self.mongo_database = self.mongo_client[db_name]
-        self.firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
+        self.storage = Storage(storage_path)
 
     def insert_document(
         self,
@@ -106,18 +91,15 @@ class Database:
 
     def save_preview_image(self, src, job_id, document_index):
         filename = f"documents/{job_id}_{document_index}.png"
-        self.firebase_storage.child(filename).put(str(src))
-        os.remove(str(src))
+        self.storage.move_to(str(src), filename)
         return filename
 
     def save_unverified_number_images(self, job_id, document_index, images):
         for index, img in enumerate(images):
-
             filename = "unverified_number.png"
             self.imwrite_png(filename, img)
-            self.firebase_storage.child(
-                f"unverified_numbers/{job_id}/{document_index}/{index}.png"
-            ).put(str(os.path.join(f"numbers/{filename}")))
+            n_png = f"unverified_numbers/{job_id}/{document_index}/{index}.png"
+            self.storage.move_to(str(f"numbers/{filename}"), n_png)
 
         shutil.rmtree(os.path.join("numbers"))
 

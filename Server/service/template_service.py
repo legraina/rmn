@@ -11,7 +11,7 @@ TEMP_FOLDER = Path(__file__).resolve().parent.joinpath("temp")
 
 class TemplateService() :
 
-    def create_template(request, db, firebaseConfig) :
+    def create_template(request, db, storage) :
 
         request_form = request.form
 
@@ -67,17 +67,15 @@ class TemplateService() :
         template_id = str(uuid.uuid4())
 
         try:
-            firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
-
             file_name = str(TEMP_FOLDER.joinpath(template_file_name))
             path_on_cloud = 'template/'
             template_file_id = f'{path_on_cloud}{template_id}.pdf'
-            firebase_storage.child(template_file_id).put(file_name)
+            storage.move_to(file_name, template_file_id)
 
         except Exception as e:
             print(e)
             return Response(
-                response=json.dumps({"response": f"Error: Failed to upload files to FireBase."}),
+                response=json.dumps({"response": f"Error: Failed to upload files to storage."}),
                 status=500,
             )
 
@@ -105,7 +103,7 @@ class TemplateService() :
         return Response(response=json.dumps({"response": "OK"}), status=200)
 
 
-    def delete_template(request, db, firebaseConfig) :
+    def delete_template(request, db, storage):
         request_form = request.form
 
         if "template_id" not in request_form:
@@ -123,9 +121,7 @@ class TemplateService() :
 
         collection = db["template"]
 
-
-        firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
-        firebase_storage.delete(f'template/{template_id}.pdf')
+        storage.remove(f'template/{template_id}.pdf')
 
         collection.delete_one({"template_id": template_id})
 
@@ -194,7 +190,7 @@ class TemplateService() :
 
         return Response(response=json.dumps({"response": template_resp}), status=200)
 
-    def download_template_file(request, db, firebaseConfig) :
+    def download_template_file(request, db, storage) :
         request_form = request.form
 
         #
@@ -205,11 +201,10 @@ class TemplateService() :
             )
 
         template_id = str(request_form["template_id"])
-        firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
 
         # Save file to local
         filepath = str(TEMP_FOLDER.joinpath(template_id))
-        firebase_storage.child(f"template/{template_id}.pdf").download(filepath)
+        storage.copy_from(f"template/{template_id}.pdf", filepath)
         print("file created")
 
         file_send = send_file(filepath)

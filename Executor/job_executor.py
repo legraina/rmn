@@ -3,6 +3,7 @@ import configparser
 from pymongo import MongoClient
 from pathlib import Path
 from utils.utils import Job_Status, Document_Status
+from utils.storage import Storage
 from zipfile import ZipFile
 import socketio
 
@@ -14,35 +15,24 @@ import pandas as pd
 import uuid
 import time
 
-import pyrebase
 
-firebaseConfig = {
-    "apiKey": "AIzaSyAPHNsT4BQjbvC_NNgu0BB3YXPZy1vioNU",
-    "authDomain": "projet4-bcfe5.firebaseapp.com",
-    "projectId": "projet4-bcfe5",
-    "storageBucket": "projet4-bcfe5.appspot.com",
-    "messagingSenderId": "171342986362",
-    "appId": "1:171342986362:web:018b05e620c609a2ce0fc3",
-    "measurementId": "G-E9P71RH1DF",
-    "databaseURL": "",
-    "serviceAccount": "./config/projet4_service_account.json",
-}
+ROOT_DIR = Path(__file__).resolve().parent
 
 FOLDER = "zip_extract"
 
-MOODLE_ZIP = Path(__file__).resolve().parent.joinpath("moodle.zip")
+MOODLE_ZIP = ROOT_DIR.joinpath("moodle.zip")
 
-MOODLE_FOLDER = Path(__file__).resolve().parent.joinpath("moodle")
+MOODLE_FOLDER = ROOT_DIR.joinpath("moodle")
 
-CONFIG_FILE = Path(__file__).resolve().parent.joinpath("config").joinpath("config.ini")
+CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
 
-OUTPUT_FOLDER = Path(__file__).resolve().parent.joinpath("output")
+OUTPUT_FOLDER = ROOT_DIR.joinpath("output")
 
-# PREVIEW_OUTPUT_FILE = Path(__file__).resolve().parent.joinpath("notes_summary.pdf")
+# PREVIEW_OUTPUT_FILE = ROOT_DIR.joinpath("notes_summary.pdf")
 
-TEMP_FOLDER = Path(__file__).resolve().parent.joinpath("temp")
+TEMP_FOLDER = ROOT_DIR.joinpath("temp")
 
-VALIDATE_TEMP_FOLDER = Path(__file__).resolve().parent.joinpath("validate_temp_folder")
+VALIDATE_TEMP_FOLDER = ROOT_DIR.joinpath("validate_temp_folder")
 
 
 parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
@@ -55,26 +45,18 @@ socketio_host = (
     "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
 )
 
+storage = Storage()
+
 
 def save_number_images(job_id, document_index, questions):
     numbers = [n for n in questions.values()]
 
-    firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
-
     for index, number in enumerate(numbers):
         number = float(number)
-        if number.is_integer() and 1 <= int(number) <= 9:
-            filename = f"{uuid.uuid4()}.png"
-
-            open("unverified_number.png", "w+")
-
-            filepath = "unverified_number.png"
-            firebase_storage.child(
-                f"unverified_numbers/{job_id}/{document_index}/{index}.png"
-            ).download(filepath)
-            firebase_storage.child(f"numbers/{int(number)}/{filename}").put(filepath)
-
-            os.remove("unverified_number.png")
+        if number.is_integer() and 0 <= int(number) <= 9:
+            unverified_filename = f"unverified_numbers/{job_id}/{document_index}/{index}.png"
+            new_filename = f"numbers/{int(number)}/{uuid.uuid4()}.png"
+            storage.move_to(storage.abs_path(unverified_filename), new_filename)
 
 
 if __name__ == "__main__":
@@ -102,8 +84,6 @@ if __name__ == "__main__":
     # Create SocketIO connection
     sio = socketio.Client()
     sio.connect(f"http://{socketio_host}:7000")
-
-    firebase_storage = pyrebase.initialize_app(firebaseConfig).storage()
 
     if job_type == "validation":
         #
@@ -134,7 +114,7 @@ if __name__ == "__main__":
         # Save file to local
         filename = f"{job_id}_notes.csv"
         file_path = str(validate_tmp_folder_path.joinpath(filename))
-        firebase_storage.child(notes_csv_file_id).download(file_path)
+        storage.copy_from(notes_csv_file_id, file_path)
         print("notes.csv file created")
 
         #
@@ -183,7 +163,7 @@ if __name__ == "__main__":
             filename = f"{moodle_folder_name}.zip"
             # validated_tmp_folder/<job_id>_moodle_0.zip
             file_p = str(validate_tmp_folder_path.joinpath(filename))
-            firebase_storage.child(id).download(file_p)
+            storage.copy_from(id, file_p)
             # validated_tmp_folder/copies/[1.pdf, 2.pdf]
             shutil.unpack_archive(file_p, temp_copies_folder_path)
             curr_moodle_folder_path = temp_copies_folder_path
@@ -299,10 +279,8 @@ if __name__ == "__main__":
             )
 
             try:
-                path_on_cloud = "output_zip/"
-                firebase_storage.child(id).put(
-                    str(validate_tmp_folder_path.joinpath(filename))
-                )
+                c_zip = str(validate_tmp_folder_path.joinpath(filename))
+                storage.move_to(c_zip, id)
             except Exception as e:
                 print(e)
 
@@ -313,11 +291,10 @@ if __name__ == "__main__":
         df.to_csv(file_path, mode="w+")
 
         try:
-            path_on_cloud = "output_csv/"
-            notes_csv_file_id = f"{path_on_cloud}{job_id}.csv"
-            firebase_storage.child(notes_csv_file_id).put(file_path)
+            n_csv = f"output_csv/{job_id}.csv"
+            storage.move_to(file_path, n_csv)
         except Exception as e:
-            print("Error while inserting file to FireBase")
+            print("Error while moving file to storage")
             collection_eval_jobs.update_one(
                 {"job_id": job_id},
                 {
@@ -364,16 +341,14 @@ if __name__ == "__main__":
         for doc in docs:
             document_index = doc["document_index"] - 1
             try:
-                firebase_storage.delete(f"documents/{job_id}_{document_index}.png")
+                storage.remove(f"documents/{job_id}_{document_index}.png")
             except:
                 continue
 
             # delete unverified numbers for job
             for image_index in range(len(doc["subquestion_predictions"].keys())):
                 try:
-                    firebase_storage.delete(
-                        f"unverified_numbers/{job_id}/{document_index}/{image_index}.png"
-                    )
+                    storage.remove(f"unverified_numbers/{job_id}/{document_index}/{image_index}.png")
                 except:
                     continue
 
@@ -397,14 +372,10 @@ if __name__ == "__main__":
             os.makedirs(OUTPUT_FOLDER)
 
         # Save notes.csv file to local
-        firebase_storage.child(job_params["notes_file_id"]).download(
-            str(OUTPUT_FOLDER.joinpath("notes.csv"))
-        )
+        storage.copy_from(job_params["notes_file_id"], str(OUTPUT_FOLDER.joinpath("notes.csv")))
 
         # Save zip file to local
-        firebase_storage.child(job_params["zip_file_id"]).download(
-            str(OUTPUT_FOLDER.joinpath("content.zip"))
-        )
+        storage.copy_from(job_params["zip_file_id"], str(OUTPUT_FOLDER.joinpath("content.zip")))
 
         if not os.path.exists(FOLDER):
             os.makedirs(FOLDER)
@@ -466,33 +437,28 @@ if __name__ == "__main__":
 
         print("Module Done")
 
-        # Save output files in Firebase
+        # Save output files in storage
         folder = "output_csv/"
         filename = f"{job}.csv"
         notes_csv_file_id = f"{folder}{filename}"
-        firebase_storage.child(notes_csv_file_id).put(
-            str(OUTPUT_FOLDER.joinpath("notes.csv"))
-        )
-        # folder = "output_preview/"
-        # filename = f"{job}.pdf"
-        # preview_file_id = f"{folder}{filename}"
-        # firebase_storage.child(preview_file_id).put(str(PREVIEW_OUTPUT_FILE))
+        shutil.move_to(str(OUTPUT_FOLDER.joinpath("notes.csv")), notes_csv_file_id)
 
         folder = "output_zip/"
         filename = f"{job}.zip"
         moodle_zip_file_id = f"{folder}{filename}"
-        firebase_storage.child(moodle_zip_file_id).put(str(MOODLE_ZIP))
+        storage.move_to(str(MOODLE_ZIP), moodle_zip_file_id)
 
         moodle_zip_id_list = [moodle_zip_file_id]
-        for i in range(1, 1001):
-            filename = f"{job}_{i}.zip"
-            moodle_zip_file_id = f"{folder}{filename}"
+        i = 1
+        while True:
             file_name = "moodle{0}.zip".format(i)
             if not os.path.isfile(file_name):
                 break
-            file_path = Path(__file__).resolve().parent.joinpath(file_name)
-            firebase_storage.child(moodle_zip_file_id).put(str(file_path))
+            moodle_zip_file_id = f"{folder}{job}_{i}.zip"
+            file_path = ROOT_DIR.joinpath(file_name)
+            storage.move_to(str(file_path), moodle_zip_file_id)
             moodle_zip_id_list.append(moodle_zip_file_id)
+            i = i + 1
 
         collection_output.insert_one(
             {
@@ -519,8 +485,8 @@ if __name__ == "__main__":
             ),
         )
 
-        firebase_storage.delete(f"csv/{job}.csv")
-        firebase_storage.delete(f"zips/{job}.zip")
+        storage.remove(f"csv/{job}.csv")
+        storage.remove(f"zips/{job}.zip")
 
         # Clean up
 

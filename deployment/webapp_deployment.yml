@@ -11,9 +11,7 @@ spec:
       targetPort: 80
   selector:
     com.docker.project: rmn-webapp
-  type: LoadBalancer
-status:
-  loadBalancer: {}
+  type: NodePort
 ---
 apiVersion: apps/v1
 kind: Deployment

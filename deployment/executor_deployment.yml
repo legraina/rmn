@@ -15,16 +15,26 @@ spec:
   jobTargetRef:
     template:
       spec:
+        volumes:
+          - name: executor-pv-storage
+            persistentVolumeClaim:
+              claimName: nfs-pvc
         containers:
-        - name: executor
-          image: rmni/executor
-          imagePullPolicy: Never
-          ports:
-            - containerPort: 5000
-              protocol: TCP
-          resources:
-            limits:
-              memory: "10240Mi"
+          - name: executor
+            image: rmni/executor
+            imagePullPolicy: Never
+            ports:
+              - containerPort: 5000
+                protocol: TCP
+            resources:
+              limits:
+                memory: "10240Mi"
+            volumeMounts:
+              - mountPath: "/storage"
+                name: executor-pv-storage
+            env:
+              - name: STORAGE
+                value: "/storage"
         restartPolicy: Never
     backoffLimit: 0
   pollingInterval: 1

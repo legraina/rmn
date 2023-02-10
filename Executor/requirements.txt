@@ -14,6 +14,5 @@ tensorflow
 unidecode
 werkzeug
 flask_socketio
-pyrebase
 httplib2==0.15.0
 jwt

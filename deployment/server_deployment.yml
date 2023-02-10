@@ -11,9 +11,7 @@ spec:
       targetPort: 5000
   selector:
     com.docker.project: server
-  type: LoadBalancer
-status:
-  loadBalancer: {}
+  type: NodePort
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -31,18 +29,28 @@ spec:
         labels:
             com.docker.project: server
     spec:
-        containers:
-            - image: rmni/server
-              name: server
-              ports:
-                - containerPort: 5000
-                  protocol: TCP
-              resources: {}
-              livenessProbe:
-                httpGet:
-                  path: /
-                  port: 5000
-                initialDelaySeconds: 30
-                periodSeconds: 10
-        restartPolicy: Always
+      volumes:
+        - name: server-pv-storage
+          persistentVolumeClaim:
+            claimName: nfs-pvc
+      containers:
+        - image: rmni/server
+          name: server
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+          resources: {}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: "/storage"
+              name: server-pv-storage
+          env:
+            - name: STORAGE
+              value: "/storage"
+      restartPolicy: Always
 status: {}

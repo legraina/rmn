@@ -42,6 +42,7 @@ export class LoginPageComponent implements OnInit {
     this.userService.login(this.username, this.password).subscribe((resp) => {
       //Insert loading bar condition
       let response = resp['response']
+      localStorage.setItem('is_logged_in', 'true' )
       localStorage.setItem('user_id', response['username'] )
       localStorage.setItem('role', response['role'])
       localStorage.setItem('saveVerifiedImages', JSON.stringify(response['saveVerifiedImages']))
@@ -52,9 +53,9 @@ export class LoginPageComponent implements OnInit {
       this.userService.saveVerifiedImages = response['saveVerifiedImages'];
       this.userService.moodleStructureInd = response['moodleStructureInd'];
       this.router.navigate(['/main-menu']);
-    }, (err) => { 
+    }, (err) => {
       this.notification.showError(err.error.response, "Erreur de connexion")
     })
-    
+
   }
 }

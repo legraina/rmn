@@ -11,6 +11,9 @@ import { PresentationPageComponent } from './components/presentation-page/presen
 import { UserProfileComponent } from './components/user-profile/user-profile.component';
 import { UserGuideComponent } from './components/user-guide/user-guide.component';
 
+const loggedGuard = () => {
+  return (localStorage.getItem('is_logged_in') == 'true');
+};
 
 // This is my case
 const routes: Routes = [
@@ -20,39 +23,57 @@ const routes: Routes = [
     },
     {
         path: 'main-menu',
-        component : MainMenuComponent
+        component : MainMenuComponent,
+        canActivate: [loggedGuard]
     },
     {
         path: 'new-correction',
-        component : NewCorrectionComponent
+        component : NewCorrectionComponent,
+        canActivate: [loggedGuard]
     },
     {
         path: 'tasks-history',
-        component : TasksHistoryComponent
+        component : TasksHistoryComponent,
+        canActivate: [loggedGuard]
     },
     {
         path: 'templates',
-        component : TemplatesPageComponent
+        component : TemplatesPageComponent,
+        canActivate: [loggedGuard]
     },
     {
         path: 'template-editor',
-        component : TemplateEditorComponent
+        component : TemplateEditorComponent,
+        canActivate: [loggedGuard]
     },
     {
         path: 'task-validation',
-        component : TaskVerificationComponent
+        component : TaskVerificationComponent,
+        canActivate: [loggedGuard]
     },
     {
         path: 'presentation-page',
-        component : PresentationPageComponent
+        component : PresentationPageComponent,
+        canActivate: [loggedGuard]
     },
     {
         path: 'user-profile',
-        component : UserProfileComponent
+        component : UserProfileComponent,
+        canActivate: [loggedGuard]
     },
     {
         path: 'user-guide',
-        component : UserGuideComponent
+        component : UserGuideComponent,
+        canActivate: [loggedGuard]
+    },
+    {
+        path: '**',
+        component : MainMenuComponent,
+        canActivate: [loggedGuard]
+    },
+    {
+        path: '**',
+        component : LoginPageComponent
     }
 ];
 

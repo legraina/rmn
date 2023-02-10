@@ -3,26 +3,30 @@ kind: Ingress
 metadata:
   name: rmn-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+#    nginx.ingress.kubernetes.io/enable-rewrite-log: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
 spec:
   rules:
-    - http:
+    - host: rmn.mgi.polymtl.ca
+      http:
         paths:
-          - path: /(.*)
+          # retrieve any file with an extansion
+          - path: /(.*\..*)
             pathType: Prefix
             backend:
               service:
                 name: rmn-webapp
                 port:
                   number: 80
-          - path: /new-correction(/|$)(.*)
+          # route any path to the root of the application
+          - path: /
             pathType: Prefix
             backend:
               service:
                 name: rmn-webapp
                 port:
                   number: 80
-          - path: /api(/|$)(.*)
+          - path: /api/(.*)
             pathType: Prefix
             backend:
               service:
