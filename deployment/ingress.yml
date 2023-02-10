@@ -15,7 +15,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: rmn-webapp
+                name: webapp
                 port:
                   number: 80
           # route any path to the root of the application
@@ -23,7 +23,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: rmn-webapp
+                name: webapp
                 port:
                   number: 80
           - path: /api/(.*)

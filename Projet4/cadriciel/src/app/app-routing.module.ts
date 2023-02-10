@@ -1,6 +1,6 @@
 import { NgModule } from '@angular/core';
 import { Injectable } from '@angular/core';
-import { RouterModule, Router, CanActivate, ActivatedRouteSnapshot,RouterStateSnapshot } from '@angular/router';
+import { RouterModule, Routes, Router, CanActivate, ActivatedRouteSnapshot,RouterStateSnapshot } from '@angular/router';
 import { LoginPageComponent } from './components/login-page/login-page.component';
 import { MainMenuComponent } from './components/main-menu/main-menu.component';
 import { NewCorrectionComponent } from './components/new-correction/new-correction.component';
@@ -11,17 +11,19 @@ import { TaskVerificationComponent } from './components/task-verification/task-v
 import { PresentationPageComponent } from './components/presentation-page/presentation-page.component';
 import { UserProfileComponent } from './components/user-profile/user-profile.component';
 import { UserGuideComponent } from './components/user-guide/user-guide.component';
+import { UserService } from './services/user.service';
 
 
 @Injectable()
 export class LoggedGuardService implements CanActivate {
-    constructor(private _router:Router ) {}
+    constructor(private _router:Router, private userService: UserService) {}
 
     canActivate(route: ActivatedRouteSnapshot,
                 state: RouterStateSnapshot): boolean {
-        return localStorage.getItem('user_id') != null;
+        return this.userService.currentUsername != null;
     }
 }
+
 
 // This is my case
 const routes: Routes = [
