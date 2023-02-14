@@ -3,11 +3,12 @@ from utils.box_converter import convert_box_to_dict, convert_box_to_list
 from pathlib import Path
 from io import FileIO
 from werkzeug.utils import secure_filename
-
-
 import uuid
 import os
+
+
 TEMP_FOLDER = Path(__file__).resolve().parent.joinpath("temp")
+
 
 class TemplateService() :
 
@@ -228,14 +229,13 @@ class TemplateService() :
         collection = db["template"]
 
         collection.update_one(
-        {"template_id": template_id},
-        {
-            "$set": {
-                "template_name": template_name,
-                "matricule_box": matricule_box,
-                "grade_box": grade_box,
-            }
-        },
-    )
+            {"template_id": template_id},
+            {
+                "$set": {
+                    "template_name": template_name,
+                    "matricule_box": matricule_box,
+                    "grade_box": grade_box,
+                }
+            })
 
         return Response(response=json.dumps({"response": "OK"}), status=200)

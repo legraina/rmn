@@ -7,7 +7,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
 def create_tree(file_path):
-    os.makedirs(file_path.rsplit("/",1)[0])
+    os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
 
 
 class Storage:

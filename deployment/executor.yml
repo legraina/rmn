@@ -16,13 +16,15 @@ spec:
     template:
       spec:
         volumes:
-          - name: executor-pv-storage
-            persistentVolumeClaim:
-              claimName: nfs-pvc
+          - name: nfs-storage
+            nfs:
+              server: 10.109.235.85
+              path: /
+              readOnly: no
         containers:
           - name: executor
             image: rmni/executor:latest
-            imagePullPolicy: Never
+            imagePullPolicy: Always
             ports:
               - containerPort: 5000
                 protocol: TCP
@@ -30,11 +32,11 @@ spec:
               limits:
                 memory: "10240Mi"
             volumeMounts:
-              - mountPath: "/storage"
-                name: executor-pv-storage
+              - mountPath: /mnt/storage
+                name: nfs-storage
             env:
               - name: STORAGE
-                value: "/storage"
+                value: /mnt/storage
         restartPolicy: Never
     backoffLimit: 0
   pollingInterval: 1

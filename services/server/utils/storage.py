@@ -18,6 +18,8 @@ class Storage:
             self.path = Path(os.getenv('STORAGE'))
         else:
             self.path = ROOT_DIR.joinpath("storage")
+        print("Access:", os.access(self.path, os.R_OK))
+        print("Access:", os.access(self.path, os.W_OK))
 
     def abs_path(self, r_path):
         return str(self.path.joinpath(r_path))
