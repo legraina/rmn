@@ -3,7 +3,7 @@ from utils.box_converter import convert_box_to_dict, convert_box_to_list
 from pathlib import Path
 from io import FileIO
 from werkzeug.utils import secure_filename
-import pyrebase
+
 
 import uuid
 import os
@@ -51,7 +51,6 @@ class TemplateService() :
         if not os.path.exists(TEMP_FOLDER):
             os.makedirs(TEMP_FOLDER)
         try:
-
             template_file = request.files.get("template_file")
             template_file_name = secure_filename(template_file.filename)
             template_file.save(FileIO(TEMP_FOLDER.joinpath(template_file_name), "wb"))
@@ -96,9 +95,6 @@ class TemplateService() :
                 response=json.dumps({"response": f"Error: Failed to insert in MongoDB."}),
                 status=500,
             )
-
-        # delete temp files
-        os.remove(str(TEMP_FOLDER.joinpath(template_file_name)))
 
         return Response(response=json.dumps({"response": "OK"}), status=200)
 

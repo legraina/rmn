@@ -16,17 +16,17 @@ services:
     ports:
       - "27017:27017"
   executor:
-    build: ./Executor
+    build: ./services/executor
     image: rmni/executor:latest
     restart: unless-stopped
     # ports:
     #   - "5001:5001"
     volumes:
-      - ./Executor:/Executor
+      - ./services/executor:/Executor
     depends_on:
       - redis
   server:
-    build: ./Server
+    build: ./services/server
     image: rmni/server:latest
     restart: unless-stopped
     # ports:
@@ -35,13 +35,13 @@ services:
     depends_on:
       - redis
     volumes:
-      - ./Server:/Server
+      - ./services/server:/server
   socketio:
-    build: ./SocketIO
+    build: ./services/socketIO
     image: rmni/socketio:latest
     restart: unless-stopped
     # ports:
     #   - '7000:7000'
     # network_mode: "host"
     volumes:
-      - ./SocketIO:/SocketIO
+      - ./services/socketIO:/SocketIO
