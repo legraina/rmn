@@ -30,9 +30,11 @@ spec:
             com.docker.project: server
     spec:
       volumes:
-        - name: server-pv-storage
-          persistentVolumeClaim:
-            claimName: nfs-pvc
+        - name: nfs-storage
+          nfs:
+            server: 10.109.235.85
+            path: /
+            readOnly: no
       containers:
         - image: rmni/server:latest
           name: server
@@ -48,10 +50,9 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
           volumeMounts:
-            - mountPath: "/storage"
-              name: server-pv-storage
+            - mountPath: /mnt/storage
+              name: nfs-storage
           env:
             - name: STORAGE
-              value: "/storage"
+              value: /mnt/storage
       restartPolicy: Always
-status: {}

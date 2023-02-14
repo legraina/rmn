@@ -313,10 +313,6 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
         sio.disconnect()
         exit()
 
-    # delete temp files
-    os.remove(str(TEMP_FOLDER.joinpath(notes_csv_file_name)))
-    os.remove(str(TEMP_FOLDER.joinpath(zip_file_name)))
-
     # add to Redis Queue
     queue_object = {
         "job_type": "execution",

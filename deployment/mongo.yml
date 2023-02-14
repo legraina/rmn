@@ -11,15 +11,35 @@ spec:
     app: mongo
 ---
 apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mongo-pv
+  labels:
+    pv: mongo
+spec:
+  capacity:
+    storage: 2G
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/home/kubadm/k8s-storage/mongodb"
+  storageClassName: standard
+  persistentVolumeReclaimPolicy: Recycle
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mongodata
+  name: mongo-pvc
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: standard
   resources:
     requests:
-      storage: 50G
+      storage: 2G
+  selector:
+    matchLabels:
+      pv: mongo
 ---
 apiVersion: v1
 kind: ReplicationController
@@ -49,9 +69,9 @@ spec:
               containerPort: 27017
           volumeMounts:
             - mountPath: /data/db
-              name: mongodata
+              name: mongo-pv
       restartPolicy: Always
       volumes:
-        - name: mongodata
+        - name: mongo-pv
           persistentVolumeClaim:
-            claimName: mongodata
+            claimName: mongo-pvc

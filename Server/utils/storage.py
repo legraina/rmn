@@ -7,7 +7,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
 def create_tree(file_path):
-    os.makedirs(file_path.rsplit("/",1)[0])
+    os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
 
 
 class Storage:
@@ -18,6 +18,8 @@ class Storage:
             self.path = Path(os.getenv('STORAGE'))
         else:
             self.path = ROOT_DIR.joinpath("storage")
+        print("Access:", os.access(self.path, os.R_OK))
+        print("Access:", os.access(self.path, os.W_OK))
 
     def abs_path(self, r_path):
         return str(self.path.joinpath(r_path))
