@@ -18,16 +18,6 @@ import time
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-
-WORK_DIR = ROOT_DIR.joinpath("tmp")
-WORK_DIR.mkdir(exist_ok=True)
-MOODLE_ZIP = WORK_DIR.joinpath("moodle.zip")
-MOODLE_FOLDER = WORK_DIR.joinpath("moodle")
-OUTPUT_FOLDER = WORK_DIR.joinpath("output")
-EXTRACT_FOLDER = WORK_DIR.joinpath("extract")
-VALIDATE_FOLDER = WORK_DIR.joinpath("validate")
-
-
 CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
 parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 parser.read(CONFIG_FILE)
@@ -79,10 +69,24 @@ if __name__ == "__main__":
     sio = socketio.Client()
     sio.connect(f"http://{socketio_host}:7000")
 
-    if job_type == "validation":
-        #
+    try:
         job_id = queue_object["job_id"]
         user_id = queue_object["user_id"]
+    except:
+        mongo_client.close()
+        sio.disconnect()
+        raise
+
+    WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
+    WORK_TMP_DIR.mkdir(exist_ok=True)
+    MOODLE_ZIP = WORK_TMP_DIR.joinpath("moodle.zip")
+    MOODLE_FOLDER = WORK_TMP_DIR.joinpath("moodle")
+    OUTPUT_FOLDER = WORK_TMP_DIR.joinpath("output")
+    EXTRACT_FOLDER = WORK_TMP_DIR.joinpath("extract")
+    VALIDATE_FOLDER = WORK_TMP_DIR.joinpath("validate")
+
+    if job_type == "validation":
+        #
         moodle_ind = bool(int(queue_object["moodle_ind"]))
 
         #
@@ -286,9 +290,6 @@ if __name__ == "__main__":
         )
 
         #
-        shutil.rmtree(str(validate_tmp_folder_path))
-
-        #
         collection_eval_jobs.update_one(
             {"job_id": job_id},
             {
@@ -329,9 +330,6 @@ if __name__ == "__main__":
         collection.delete_many({"job_id": job_id})
 
     elif job_type == "execution":
-        job = queue_object["job_id"]
-        user_id = queue_object["user_id"]
-
         # make directories
         MOODLE_FOLDER.mkdir(exist_ok=True)
         OUTPUT_FOLDER.mkdir(exist_ok=True)
@@ -356,32 +354,31 @@ if __name__ == "__main__":
         with ZipFile(str(OUTPUT_FOLDER.joinpath("content.zip")), "r") as zip_ref:
             zip_ref.extractall(EXTRACT_FOLDER)
 
-        print("Running module")
+        args = [
+            "python3",
+            "-m",
+            "python.process_copy",
+            EXTRACT_FOLDER,
+            "-m",
+            MOODLE_FOLDER,
+            "-g",
+            "exam",
+            "--grades",
+            str(OUTPUT_FOLDER.joinpath("notes.csv")),
+            "-e",
+            "--job_id",
+            job,
+            "--user_id",
+            user_id,
+            "--template_id",
+            job_params["template_id"],
+            "--export",
+            "--batch",
+            "500",
+        ]
+        print("Running module with:", args)
         # process_copy
-        proc = subprocess.Popen(
-            [
-                "python3",
-                "-m",
-                "python.process_copy",
-                EXTRACT_FOLDER,
-                "-m",
-                MOODLE_FOLDER,
-                "-g",
-                "exam",
-                "--grades",
-                str(OUTPUT_FOLDER.joinpath("notes.csv")),
-                "-e",
-                "--job_id",
-                job,
-                "--user_id",
-                user_id,
-                "--template_id",
-                job_params["template_id"],
-                "--export",
-                "--batch",
-                "500",
-            ]
-        )
+        proc = subprocess.Popen(args)
         exit_code = proc.wait()
 
         # Error handling
@@ -425,12 +422,8 @@ if __name__ == "__main__":
 
         moodle_zip_id_list = [moodle_zip_file_id]
         i = 1
-        while True:
-            file_name = "moodle{0}.zip".format(i)
-            if not os.path.isfile(file_name):
-                break
+        for file_path in WORK_TMP_DIR.glob("moodle*.zip")
             moodle_zip_file_id = f"{folder}{job}_{i}.zip"
-            file_path = ROOT_DIR.joinpath(file_name)
             storage.move_to(str(file_path), moodle_zip_file_id)
             moodle_zip_id_list.append(moodle_zip_file_id)
             i = i + 1
@@ -462,19 +455,11 @@ if __name__ == "__main__":
 
         storage.remove(f"csv/{job}.csv")
         storage.remove(f"zips/{job}.zip")
-
-        # Clean up
-        for file_name in glob.glob("moodle*.zip"):
-            os.remove(file_name)
-
-        # os.remove(PREVIEW_OUTPUT_FILE)
-        shutil.rmtree(EXTRACT_FOLDER)
-        shutil.rmtree(OUTPUT_FOLDER)
-        shutil.rmtree(MOODLE_FOLDER)
-        MOODLE_ZIP.unlink(missing_ok=True)
-
     else:
         print(f"Type '{job_type}' not handled.")
+
+    # clean WORK_TMP_DIR
+    shutil.rmtree(WORK_TMP_DIR)
 
     mongo_client.close()
     sio.disconnect()
