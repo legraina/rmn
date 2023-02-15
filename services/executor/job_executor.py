@@ -422,7 +422,7 @@ if __name__ == "__main__":
 
         moodle_zip_id_list = [moodle_zip_file_id]
         i = 1
-        for file_path in WORK_TMP_DIR.glob("moodle*.zip")
+        for file_path in WORK_TMP_DIR.glob("moodle*.zip"):
             moodle_zip_file_id = f"{folder}{job}_{i}.zip"
             storage.move_to(str(file_path), moodle_zip_file_id)
             moodle_zip_id_list.append(moodle_zip_file_id)

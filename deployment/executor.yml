@@ -40,7 +40,7 @@ spec:
         restartPolicy: Never
     backoffLimit: 0
   pollingInterval: 1
-  maxReplicaCount: 4
+  maxReplicaCount: 10
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2
   scalingStrategy:
@@ -50,4 +50,4 @@ spec:
     metadata:
       address: redis.default:6379
       listName: job_queue
-      listLength  : '1'
+      listLength: '1'
