@@ -21,8 +21,7 @@ CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
 parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 parser.read(CONFIG_FILE)
 
-URL = parser.get("MONGODB", "URL")
-
+mongo_url = parser.get("MONGODB", "URL")
 redis_host = "redis" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
 socketio_host = (
     "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
@@ -52,7 +51,7 @@ if __name__ == "__main__":
 
     #
     print("Setting up MongoClient...")
-    mongo_client = MongoClient(URL)
+    mongo_client = MongoClient(mongo_url)
 
     db = mongo_client["RMN"]
     collection = db["job_documents"]
