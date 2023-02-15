@@ -44,10 +44,8 @@ app.config["CORS_HEADERS"] = "Content-Type"
 
 parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 parser.read(CONFIG_FILE)
-
-URL = parser.get("MONGODB", "URL")
-
-mongo_client = MongoClient(URL)
+mongo_url = parser.get("MONGODB", "URL")
+mongo_client = MongoClient(mongo_url)
 
 redis_host = "redis" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
 socketio_host = (
@@ -663,7 +661,7 @@ def download_document():
             response=json.dumps({"response": f"No document found!"}),
             status=404,
         )
-        
+
     # Save file to local
     print("file_id", file_id)
     storage.copy_from(file_id, str(file_id))
@@ -784,22 +782,28 @@ def delete():
     #
     job_id = str(request_form["job_id"])
 
-    #
-    db = mongo_client["RMN"]
-    collection_eval_jobs = db["eval_jobs"]
-    collection_output = db["jobs_output"]
-
     try:
-        for f in [
-            (
-                "output_csv/",
-                ".csv",
-            ),
-            ("output_zip/", ".zip"),
-        ]:
-            storage.remove(f"{f[0]}{job_id}{f[1]}")
+        storage.remove(f"output_csv/{job_id}.csv")
+        storage.remove(f"output_zip/{job_id}.zip")
     except Exception as e:
         print(e)
+
+    try:
+        storage.remove_tree(f"documents/{job_id}")
+    except Exception as e:
+        print(e)
+
+    #
+    try:
+        collection.delete_many({"job_id": job_id})
+    except Exception as e:
+        print(e)
+
+    #
+    db = mongo_client["RMN"]
+    collection = db["job_documents"]
+    collection_eval_jobs = db["eval_jobs"]
+    collection_output = db["jobs_output"]
 
     #
     try:

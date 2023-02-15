@@ -93,10 +93,11 @@
                 <ng-container matColumnDef="job_deletion">
                     <th mat-header-cell *matHeaderCellDef mat-sort-header> </th>
                     <td mat-cell *matCellDef="let row">
-                        <button *ngIf="row.job_status == 'ARCHIVED' || row.job_status == 'ERROR'"
+                      <button (click)="deleteJob(row.job_id)" mat-raised-button color="warn">Supprimer</button>
+                        <!-- <button *ngIf="row.job_status == 'ARCHIVED' || row.job_status == 'ERROR'"
                             (click)="deleteJob(row.job_id)" mat-raised-button color="warn">Supprimer</button>
                         <button *ngIf="row.job_status != 'ARCHIVED' && row.job_status != 'ERROR'" mat-raised-button
-                            disabled>Supprimer</button>
+                            disabled>Supprimer</button> -->
                     </td>
                 </ng-container>
 
