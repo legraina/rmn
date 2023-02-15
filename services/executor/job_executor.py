@@ -29,8 +29,6 @@ socketio_host = (
     "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
 )
 
-storage = Storage()
-
 
 def save_number_images(job_id, document_index, questions):
     numbers = [n for n in questions.values()]
@@ -52,9 +50,6 @@ if __name__ == "__main__":
         print("No job! Exiting...")
         exit()
 
-    queue_object = json.loads(job)
-    job_type = queue_object["job_type"]
-
     #
     print("Setting up MongoClient...")
     mongo_client = MongoClient(URL)
@@ -69,10 +64,13 @@ if __name__ == "__main__":
     sio = socketio.Client()
     sio.connect(f"http://{socketio_host}:7000")
 
+    queue_object = json.loads(job)
     try:
+        print("Job:", queue_object)
         job_id = queue_object["job_id"]
         user_id = queue_object["user_id"]
-    except:
+    except Exception as e:
+        print(e)
         mongo_client.close()
         sio.disconnect()
         raise
@@ -84,7 +82,10 @@ if __name__ == "__main__":
     OUTPUT_FOLDER = WORK_TMP_DIR.joinpath("output")
     EXTRACT_FOLDER = WORK_TMP_DIR.joinpath("extract")
     VALIDATE_FOLDER = WORK_TMP_DIR.joinpath("validate")
+    
+    storage = Storage()
 
+    job_type = queue_object["job_type"]
     if job_type == "validation":
         #
         moodle_ind = bool(int(queue_object["moodle_ind"]))
