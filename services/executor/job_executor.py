@@ -10,6 +10,7 @@ import socketio
 import subprocess
 import os
 import shutil
+import glob
 import json
 import pandas as pd
 import uuid
@@ -341,7 +342,7 @@ if __name__ == "__main__":
         for doc in docs:
             document_index = doc["document_index"] - 1
             try:
-                storage.remove(f"documents/{job_id}_{document_index}.png")
+                storage.remove(f"documents/{job_id}/{document_index}.png")
             except:
                 continue
 
@@ -441,7 +442,7 @@ if __name__ == "__main__":
         folder = "output_csv/"
         filename = f"{job}.csv"
         notes_csv_file_id = f"{folder}{filename}"
-        shutil.move_to(str(OUTPUT_FOLDER.joinpath("notes.csv")), notes_csv_file_id)
+        storage.move_to(str(OUTPUT_FOLDER.joinpath("notes.csv")), notes_csv_file_id)
 
         folder = "output_zip/"
         filename = f"{job}.zip"
@@ -489,13 +490,8 @@ if __name__ == "__main__":
         storage.remove(f"zips/{job}.zip")
 
         # Clean up
-
-        for i in range(1, 1001):
-            file_name = "moodle{0}.zip".format(i)
-            if not os.path.isfile(file_name):
-                break
-            file_path = Path(__file__).resolve().parent.joinpath(file_name)
-            os.remove(file_path)
+        for file_name in glob.glob("moodle*.zip"):
+            os.remove(file_name)
 
         # os.remove(PREVIEW_OUTPUT_FILE)
         shutil.rmtree(FOLDER)

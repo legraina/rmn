@@ -4,7 +4,10 @@
 
 ##### Ingress
 nginx is only used as a reverse proxy to redirect all requests to kubernetes and to handle certificates.
-All the routing part is handle by ingress (i.e., nginx in kubernetes).
+All the routing part is handle by ingress (i.e., nginx in kubernetes). Ingress needs to be enabled in minikube:
+```
+minikube addons enable ingress
+```
 
 ##### Mongo
 Mongo is run within the kubernetes cluster now.
@@ -40,6 +43,15 @@ Forwarding from [::1]:42349 -> 2049
 Then, mount the nfs volume:
 ```
 sudo mount -t nfs -o port=42349 127.0.0.1:/ /your/host/path/folder
+```
+
+To mount a volume into minikube, open a port (here 35475) for 192.168.49.2 (minikube ip) with:
+```
+sudo ufw allow from 192.168.49.2 to any port 35475
+```
+Then, mount the volume into minikube:
+```
+minikube mount --port=35475 ./k8s_storage:/mnt/k8s_storage
 ```
 
 ### Modify deployment
