@@ -10,7 +10,6 @@ import socketio
 import subprocess
 import os
 import shutil
-import glob
 import json
 import pandas as pd
 import uuid
@@ -42,13 +41,14 @@ def save_number_images(job_id, document_index, questions):
 
 
 if __name__ == "__main__":
-
+    print("Retrieving job from redis")
     r = redis.Redis(host=redis_host, port=6379, db=0)
     job = r.lpop("job_queue")
 
     if not job:
         print("No job! Exiting...")
         exit()
+    print("Job:", job)
 
     #
     print("Setting up MongoClient...")
@@ -66,7 +66,6 @@ if __name__ == "__main__":
 
     queue_object = json.loads(job)
     try:
-        print("Job:", queue_object)
         job_id = queue_object["job_id"]
         user_id = queue_object["user_id"]
     except Exception as e:
@@ -82,7 +81,7 @@ if __name__ == "__main__":
     OUTPUT_FOLDER = WORK_TMP_DIR.joinpath("output")
     EXTRACT_FOLDER = WORK_TMP_DIR.joinpath("extract")
     VALIDATE_FOLDER = WORK_TMP_DIR.joinpath("validate")
-    
+
     storage = Storage()
 
     job_type = queue_object["job_type"]
