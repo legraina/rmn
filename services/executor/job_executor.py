@@ -19,23 +19,16 @@ import time
 
 ROOT_DIR = Path(__file__).resolve().parent
 
-FOLDER = "zip_extract"
+WORK_DIR = ROOT_DIR.joinpath("tmp")
+WORK_DIR.mkdir(exist_ok=True)
+MOODLE_ZIP = WORK_DIR.joinpath("moodle.zip")
+MOODLE_FOLDER = WORK_DIR.joinpath("moodle")
+OUTPUT_FOLDER = WORK_DIR.joinpath("output")
+EXTRACT_FOLDER = WORK_DIR.joinpath("extract")
+VALIDATE_FOLDER = WORK_DIR.joinpath("validate")
 
-MOODLE_ZIP = ROOT_DIR.joinpath("moodle.zip")
-
-MOODLE_FOLDER = ROOT_DIR.joinpath("moodle")
 
 CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
-
-OUTPUT_FOLDER = ROOT_DIR.joinpath("output")
-
-# PREVIEW_OUTPUT_FILE = ROOT_DIR.joinpath("notes_summary.pdf")
-
-TEMP_FOLDER = ROOT_DIR.joinpath("temp")
-
-VALIDATE_TEMP_FOLDER = ROOT_DIR.joinpath("validate_temp_folder")
-
-
 parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 parser.read(CONFIG_FILE)
 
@@ -102,15 +95,13 @@ if __name__ == "__main__":
         moodle_zip_id_list = output["moodle_zip_id_list"]
 
         #
-        validate_tmp_folder_path = VALIDATE_TEMP_FOLDER.joinpath(f"{job_id}")
-        temp_copies_folder_path = validate_tmp_folder_path.joinpath("copies")
+        validate_tmp_folder_path = VALIDATE_FOLDER.joinpath(f"{job_id}")
+        tmp_copies_folder_path = validate_tmp_folder_path.joinpath("copies")
+        tmp_copies_folder_path.mkdir(exist_ok=True)
         validated_copies_folder_path = validate_tmp_folder_path.joinpath(
             "validated_copies"
         )
-
-        # download files
-        if not os.path.exists(validate_tmp_folder_path):
-            os.makedirs(validate_tmp_folder_path)
+        validated_copies_folder_path.mkdir(exist_ok=True)  # create tree
 
         # Save file to local
         filename = f"{job_id}_notes.csv"
@@ -151,13 +142,6 @@ if __name__ == "__main__":
         )
 
         for i, id in enumerate(moodle_zip_id_list):
-            #
-            if not os.path.exists(temp_copies_folder_path):
-                os.makedirs(temp_copies_folder_path)
-
-            if not os.path.exists(validated_copies_folder_path):
-                os.makedirs(validated_copies_folder_path)
-
             # <job_id>_moodle_0
             moodle_folder_name = f"{job_id}_moodle_{i}"
             # <job_id>_moodle_0.zip
@@ -166,8 +150,8 @@ if __name__ == "__main__":
             file_p = str(validate_tmp_folder_path.joinpath(filename))
             storage.copy_from(id, file_p)
             # validated_tmp_folder/copies/[1.pdf, 2.pdf]
-            shutil.unpack_archive(file_p, temp_copies_folder_path)
-            curr_moodle_folder_path = temp_copies_folder_path
+            shutil.unpack_archive(file_p, tmp_copies_folder_path)
+            curr_moodle_folder_path = tmp_copies_folder_path
 
             if len(os.listdir(str(curr_moodle_folder_path))) == 0:
                 continue
@@ -212,14 +196,10 @@ if __name__ == "__main__":
                         folder = validated_copies_folder_path.joinpath(
                             moodle_folder_name
                         ).joinpath(folder_name)
-
+                        folder.mkdir(exist_ok=True)
                         print("folder path", str(folder))
 
-                        if not os.path.exists(folder):
-                            os.makedirs(folder)
-
                         dest = folder.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
-
                         print("destination", dest)
 
                         # transfert file to folder
@@ -228,9 +208,7 @@ if __name__ == "__main__":
                         folder = validated_copies_folder_path.joinpath(
                             moodle_folder_name
                         )
-
-                        if not os.path.exists(folder):
-                            os.makedirs(folder)
+                        folder.mkdir(exist_ok=True)
 
                         nom_complet = df.at[str(doc["matricule"]), "Nom complet"]
                         nom, prenom = nom_complet.split()
@@ -285,10 +263,6 @@ if __name__ == "__main__":
             except Exception as e:
                 print(e)
 
-            shutil.rmtree(str(temp_copies_folder_path))
-            shutil.rmtree(str(validated_copies_folder_path))
-
-        #
         df.to_csv(file_path, mode="w+")
 
         try:
@@ -338,26 +312,30 @@ if __name__ == "__main__":
 
         # delete preview image
         docs = collection.find({"job_id": job_id})
-
         for doc in docs:
-            document_index = doc["document_index"] - 1
-            try:
-                storage.remove(f"documents/{job_id}/{document_index}.png")
-            except:
-                continue
-
             # delete unverified numbers for job
+            document_index = doc["document_index"] - 1
             for image_index in range(len(doc["subquestion_predictions"].keys())):
                 try:
                     storage.remove(f"unverified_numbers/{job_id}/{document_index}/{image_index}.png")
                 except:
                     continue
 
+        try:
+            storage.remove_tree(f"documents/{job_id}")
+        except:
+            pass
+
         collection.delete_many({"job_id": job_id})
 
     elif job_type == "execution":
         job = queue_object["job_id"]
         user_id = queue_object["user_id"]
+
+        # make directories
+        MOODLE_FOLDER.mkdir(exist_ok=True)
+        OUTPUT_FOLDER.mkdir(exist_ok=True)
+        EXTRACT_FOLDER.mkdir(exist_ok=True)
 
         # Query job params
         print("Querying job details from Database...")
@@ -369,20 +347,14 @@ if __name__ == "__main__":
             mongo_client.close()
             exit()
 
-        if not os.path.exists(OUTPUT_FOLDER):
-            os.makedirs(OUTPUT_FOLDER)
-
         # Save notes.csv file to local
         storage.copy_from(job_params["notes_file_id"], str(OUTPUT_FOLDER.joinpath("notes.csv")))
 
         # Save zip file to local
         storage.copy_from(job_params["zip_file_id"], str(OUTPUT_FOLDER.joinpath("content.zip")))
 
-        if not os.path.exists(FOLDER):
-            os.makedirs(FOLDER)
-
         with ZipFile(str(OUTPUT_FOLDER.joinpath("content.zip")), "r") as zip_ref:
-            zip_ref.extractall(FOLDER)
+            zip_ref.extractall(EXTRACT_FOLDER)
 
         print("Running module")
         # process_copy
@@ -391,7 +363,7 @@ if __name__ == "__main__":
                 "python3",
                 "-m",
                 "python.process_copy",
-                FOLDER,
+                EXTRACT_FOLDER,
                 "-g",
                 "exam",
                 "--grades",
@@ -494,10 +466,10 @@ if __name__ == "__main__":
             os.remove(file_name)
 
         # os.remove(PREVIEW_OUTPUT_FILE)
-        shutil.rmtree(FOLDER)
+        shutil.rmtree(EXTRACT_FOLDER)
         shutil.rmtree(OUTPUT_FOLDER)
         shutil.rmtree(MOODLE_FOLDER)
-        os.remove(MOODLE_ZIP)
+        MOODLE_ZIP.unlink(missing_ok=True)
 
     else:
         print(f"Type '{job_type}' not handled.")

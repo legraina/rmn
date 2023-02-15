@@ -34,3 +34,6 @@ class Storage:
 
     def remove(self, s_file):
         os.remove(self.abs_path(s_file))
+
+    def remove_tree(self, s_dir):
+        shutil.rmtree(self.abs_path(s_dir))
