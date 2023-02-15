@@ -32,7 +32,7 @@ spec:
       volumes:
         - name: nfs-storage
           nfs:
-            server: 10.109.235.85
+            server: 10.105.99.184  # ip of the nfs service
             path: /
             readOnly: no
       containers:

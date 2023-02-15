@@ -11,37 +11,6 @@ spec:
     app: mongo
 ---
 apiVersion: v1
-kind: PersistentVolume
-metadata:
-  name: mongo-pv
-  labels:
-    pv: mongo
-spec:
-  capacity:
-    storage: 2G
-  accessModes:
-    - ReadWriteOnce
-  hostPath:
-    path: "/home/kubadm/k8s-storage/mongodb"
-  storageClassName: standard
-  persistentVolumeReclaimPolicy: Recycle
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mongo-pvc
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: standard
-  resources:
-    requests:
-      storage: 2G
-  selector:
-    matchLabels:
-      pv: mongo
----
-apiVersion: v1
 kind: ReplicationController
 metadata:
   labels:
@@ -62,16 +31,17 @@ spec:
               value: example
             - name: MONGO_INITDB_ROOT_USERNAME
               value: adminuser
-          image: mongo:4.4.18
+          image: mongo:6.0
           name: mongo
           ports:
             - name: mongo-server
               containerPort: 27017
           volumeMounts:
             - mountPath: /data/db
-              name: mongo-pv
+              name: mongo-vol
       restartPolicy: Always
       volumes:
-        - name: mongo-pv
-          persistentVolumeClaim:
-            claimName: mongo-pvc
+        - name: mongo-vol
+          hostPath:
+            path: /data/mongo
+            type: Directory
