@@ -364,6 +364,8 @@ if __name__ == "__main__":
                 "-m",
                 "python.process_copy",
                 EXTRACT_FOLDER,
+                "-m",
+                MOODLE_FOLDER,
                 "-g",
                 "exam",
                 "--grades",
