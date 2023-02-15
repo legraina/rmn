@@ -90,7 +90,7 @@ class Database:
         )
 
     def save_preview_image(self, src, job_id, document_index):
-        filename = f"documents/{job_id}_{document_index}.png"
+        filename = f"documents/{job_id}/{document_index}.png"
         self.storage.move_to(str(src), filename)
         return filename
 

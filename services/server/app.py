@@ -663,12 +663,7 @@ def download_document():
             response=json.dumps({"response": f"No document found!"}),
             status=404,
         )
-
-    if not os.path.exists("documents"):
-            os.mkdir("documents")
-
-    open(str(file_id), "w+")
-
+        
     # Save file to local
     print("file_id", file_id)
     storage.copy_from(file_id, str(file_id))
