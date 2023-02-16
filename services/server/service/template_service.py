@@ -110,19 +110,19 @@ class TemplateService() :
             )
 
         template_id = str(request_form["template_id"])
-
-        if not os.path.exists(TEMP_FOLDER):
-            os.makedirs(TEMP_FOLDER)
-
-
-
         collection = db["template"]
-
         storage.remove(f'template/{template_id}.pdf')
-
         collection.delete_one({"template_id": template_id})
 
         return Response(response=json.dumps({"response": "OK"}), status=200)
+
+    def delete_templates(user_id, db, storage):
+        collection = db["template"]
+        templates = collection.find({"user_id": user_id})
+        for t in templates:
+            t_id = t["template_id"]
+            storage.remove(f'template/{t_id}.pdf')
+        collection.delete_many({"user_id": user_id})
 
     def get_all_template_info(request, db) :
         request_form = request.form

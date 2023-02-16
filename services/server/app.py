@@ -944,6 +944,8 @@ def admin_delete_user():
     #
     delete_old_jobs(user_id=user_id)
 
+    TemplateService.delete_templates(user_id, db, storage)
+
     #
     db = mongo_client["RMN"]
     UserService.delete(user_id, db)
