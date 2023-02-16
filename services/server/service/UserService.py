@@ -26,7 +26,7 @@ class UserService() :
             return True
         return tokenDB["role"] != role
 
-   def delete_tokens(request, db):
+    def delete_tokens(request, db):
        request_form = request.form
 
        r = {}

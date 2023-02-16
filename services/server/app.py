@@ -98,7 +98,7 @@ def login():
 @verify_token("Administrateur")
 def signup():
     db = mongo_client["RMN"]
-    return UserService.signup(request, db, True)
+    return UserService.signup(request, db)
 
 
 @app.route("/updateSaveVerifiedImages", methods=["PUT"])
@@ -895,7 +895,7 @@ def delete_old_jobs(n_days_old = 0, user_id = None):
 
 @app.route("/admin/delete/jobs", methods=["POST"])
 @cross_origin()
-def delete_jobs():
+def admin_delete_jobs():
     request_form = request.form
 
     if "n_days_old" not in request_form:
@@ -921,20 +921,20 @@ def delete_jobs():
 
 @app.route("/admin/signup", methods=["POST"])
 @cross_origin()
-def signup():
+def admin_signup():
     db = mongo_client["RMN"]
-    return UserService.signup(request, db, False)
+    return UserService.signup(request, db)
 
 
 @app.route("/admin/delete/tokens", methods=["POST"])
 @cross_origin()
-def delete_tokens():
+def admin_delete_tokens():
     db = mongo_client["RMN"]
     return UserService.delete_tokens(request, db)
 
 @app.route("/admin/delete/user", methods=["POST"])
 @cross_origin()
-def delete_user():
+def admin_delete_user():
     request_form = request.form
 
     if "username" not in request_form and "user_id" not in request_form:
@@ -960,7 +960,7 @@ def delete_user():
 
 @app.route("/admin/users", methods=["POST"])
 @cross_origin()
-def users():
+def admin_users():
     db = mongo_client["RMN"]
     all_users = UserService.users(db)
     return Response(response=json.dumps({"response": "OK", "users": all_users}), status=200)
