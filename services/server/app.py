@@ -794,16 +794,16 @@ def delete():
         print(e)
 
     #
-    try:
-        collection.delete_many({"job_id": job_id})
-    except Exception as e:
-        print(e)
-
-    #
     db = mongo_client["RMN"]
     collection = db["job_documents"]
     collection_eval_jobs = db["eval_jobs"]
     collection_output = db["jobs_output"]
+    
+    #
+    try:
+        collection.delete_many({"job_id": job_id})
+    except Exception as e:
+        print(e)
 
     #
     try:
