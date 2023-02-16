@@ -62,14 +62,14 @@ def verify_token(role = None):
         @wraps(f)
         def __verify_token(*args, **kwargs):
             # check if token provided
-            if "token" not in request_form:
+            if "token" not in request.form:
                 return Response(
                     response=json.dumps({"response": f"Error: token not provided."}),
                     status=400,
                 )
             # check if token valid
             db = mongo_client["RMN"]
-            token = request_form['token']
+            token = request.form['token']
             if not UserService.verify_token(token, db, role):
                 return Response(
                     response=json.dumps({"response": f"Error: token not valid. Please login."}),
@@ -80,14 +80,8 @@ def verify_token(role = None):
     return _verify_token
 
 
-@app.route("/")
-def say_hello():
-    return "<h1>Hi Hello Andy</h1>"
-
-
 @app.route("/login", methods=["POST"])
 @cross_origin()
-@verify_token()
 def login():
     db = mongo_client["RMN"]
     return UserService.login(request, db)

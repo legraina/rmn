@@ -10,7 +10,7 @@ import { SERVER_URL } from '../utils';
 export class UserService implements CanActivate {
 
   currentUsername: string = "bob2";
-  //#TODO
+  token: string;
   role: string;
   saveVerifiedImages: boolean = false;
   moodleStructureInd: boolean = false;

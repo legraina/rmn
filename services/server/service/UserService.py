@@ -4,7 +4,7 @@ from datetime import datetime
 import uuid
 
 
-class UserService() :
+class UserService:
     def create_token(username, role, database):
         token = str(uuid.uuid4())
         collection = database["tokens"]
@@ -76,7 +76,7 @@ class UserService() :
                 status=404,
             )
         if check_password_hash(userDB['password'], password) :
-            token = create_token(userDB['username'], userDB['role'], database)
+            token = UserService.create_token(userDB['username'], userDB['role'], database)
             response = {
                     "username": userDB['username'],
                     "role": userDB['role'],
