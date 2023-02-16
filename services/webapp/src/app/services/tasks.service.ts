@@ -61,6 +61,7 @@ export class TasksService {
   getTasks() {
     const formdata: FormData = new FormData();
     formdata.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
     this.http.post<any>(`${SERVER_URL}jobs`, formdata).subscribe(
       (data) => {
         let amountTask = 0;
@@ -78,14 +79,15 @@ export class TasksService {
   async getTaskById(jobId) {
     const formdata: FormData = new FormData();
     formdata.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
 
     const data = await this.http.post<any>(`${SERVER_URL}jobs`, formdata).toPromise();
     return data['response'];
   }
 
-  private showProgress(event: HttpEvent<any>) { 
+  private showProgress(event: HttpEvent<any>) {
     console.log(event)
-    if (event.type == HttpEventType.UploadProgress) { 
+    if (event.type == HttpEventType.UploadProgress) {
       const percentDone = event.total ? Math.round(100 * event.loaded / event.total) : 0
       console.log("Percentage Done : " + percentDone)
     }
@@ -94,6 +96,7 @@ export class TasksService {
   addTask(copies, csv, template_id, number_pages, taskName, template_name) {
     const formdata: FormData = new FormData();
     formdata.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
     formdata.append('template_id', template_id);
     formdata.append('zip_file', copies);
     formdata.append('notes_csv_file', csv);
@@ -107,9 +110,9 @@ export class TasksService {
     .subscribe(
       (data) => {
         this.uploadPart1 = true;
-        if (data.type == HttpEventType.UploadProgress) { 
+        if (data.type == HttpEventType.UploadProgress) {
           this.percentDone = data.total ? Math.round(100 * data.loaded / data.total) : 0
-        } 
+        }
         else if (data.type == HttpEventType.Response) {
           this.percentDone = 100;
           this.router.navigate(['/main-menu']);
@@ -126,6 +129,7 @@ export class TasksService {
 
     const formdataJobs: FormData = new FormData();
     formdataJobs.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
     this.http.post<any>(`${SERVER_URL}jobs`, formdataJobs).subscribe(
       (data) => {
         tasks = data['response']

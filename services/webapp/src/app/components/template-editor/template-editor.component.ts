@@ -27,8 +27,8 @@ export class TemplateEditorComponent implements OnInit {
     private http: HttpClient,
     private router: Router,
     private userService: UserService,
-    private templateService : TemplateService, 
-    private rectangleService : RectangleService, 
+    private templateService : TemplateService,
+    private rectangleService : RectangleService,
     private selectionService : SelectionService,
     private notifyService : NotificationService,
     private eraserService : EraserService) { }
@@ -120,7 +120,7 @@ export class TemplateEditorComponent implements OnInit {
     }else if(this.toolType === 'selection'){
       this.selectionService.mouseMove(event);
     }
-  } 
+  }
 
   mouseUp(event: MouseEvent): void {
     if (this.toolType === 'rectangle'){
@@ -151,11 +151,12 @@ export class TemplateEditorComponent implements OnInit {
       this.showNameNotificationError();
     }else if(this.rectangleService.getQuestionsRectCoords().x1 === null){
       this.showRectanglesNotificationError();
-    }else{  
+    }else{
 
 
       const formdata: FormData = new FormData();
       formdata.append('user_id', this.userService.currentUsername);
+      formdata.append('token', this.userService.token);
       formdata.append('template_name', this.templateName);
       formdata.append('matricule_box', JSON.stringify(this.rectangleService.getIdentificationRectCoords()));
       formdata.append('grade_box', JSON.stringify(this.rectangleService.getQuestionsRectCoords()));
@@ -174,9 +175,9 @@ export class TemplateEditorComponent implements OnInit {
           });
       }
       this.rectangleService.resetRects();
-      
-      
-    } 
+
+
+    }
   }
 
   reroute() {
@@ -184,4 +185,3 @@ export class TemplateEditorComponent implements OnInit {
   }
 
 }
- 

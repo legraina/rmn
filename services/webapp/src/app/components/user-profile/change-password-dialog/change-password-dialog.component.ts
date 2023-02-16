@@ -37,13 +37,14 @@ export class ChangePasswordDialogComponent implements OnInit {
       this.notification.showWarning("Veuillez remplir le(s) champ(s) vide(s)!", "Champ Vide");
     } else if(this.newPass.length < 8 || this.newPassRepeat.length < 8 ) {
       this.notification.showWarning("Veuillez entrer au minimum 8 caractères!", "Avertissement!");
-    } 
+    }
     else if (this.newPass != this.newPassRepeat) {
       this.notification.showError("Votre nouveau mot de passe ne concordre pas à celui répété!", "Champs Non Égaux");
     } else {
 
       const formdata: FormData = new FormData();
       formdata.append('username', this.userService.currentUsername);
+      formdata.append('token', this.userService.token);
       formdata.append('new_password', this.newPass);
       formdata.append('old_password', this.currentPass)
       const url = SERVER_URL + 'password';
@@ -53,13 +54,13 @@ export class ChangePasswordDialogComponent implements OnInit {
         (data) => {
           this.notification.showSuccess('Le mot de passe entré a été changé!', 'Succès');
           this.dialogRef.close('');
-        }, 
+        },
         (error) => {
           let errorResponse = error['error']['response']
-          
+
           this.notification.showError(errorResponse != null? errorResponse : "Erreur lors du changement de mot de passe", 'Erreur')
         });
-      
+
     }
   }
 

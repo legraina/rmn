@@ -136,6 +136,7 @@ export class TasksHistoryComponent implements OnInit {
   getTasks() {
     const formdata: FormData = new FormData();
     formdata.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
     this.http.post<any>(`${SERVER_URL}jobs`, formdata).subscribe(
       (data) => {
         let amountTask = 0;
@@ -153,6 +154,7 @@ export class TasksHistoryComponent implements OnInit {
         this.tasksService.setamountTasks(amountTask);
         this.tasksList.forEach(x => {
           const formdata: FormData = new FormData();
+          formdata.append('token', this.userService.token);
           formdata.append('job_id', x.job_id);
           this.http.post<any>(`${SERVER_URL}documents`, formdata).subscribe(
             (data) => {
@@ -201,6 +203,7 @@ export class TasksHistoryComponent implements OnInit {
   deleteJob(jobId: string): void {
     const formdata: FormData = new FormData();
     formdata.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
     formdata.append('job_id', jobId);
     this.http.post<any>(`${SERVER_URL}job/delete`, formdata).subscribe(
       (data) => {
@@ -227,6 +230,7 @@ export class TasksHistoryComponent implements OnInit {
   openTaskFilesDialog(jobId: string): void {
     const formdata: FormData = new FormData();
     formdata.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
     formdata.append('job_id', jobId);
     this.http.post<any>(`${SERVER_URL}job/batch/info`, formdata).subscribe(
       (data) => {

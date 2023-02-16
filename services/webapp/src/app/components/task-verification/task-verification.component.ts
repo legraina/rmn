@@ -123,6 +123,7 @@ export class TaskVerificationComponent implements OnInit {
   async getDocuments() {
     const formdata: FormData = new FormData();
     formdata.append('job_id', this.tasksService.getvalidatingTaskId());
+    formdata.append('token', this.userService.token);
 
     try {
       const promise = await this.http.post<any>(`${SERVER_URL}documents`, formdata).toPromise();
@@ -136,6 +137,7 @@ export class TaskVerificationComponent implements OnInit {
 
   loadCopyInCanvas() {
     const formdata: FormData = new FormData();
+    formdata.append('token', this.userService.token);
     formdata.append('job_id', this.tasksService.getvalidatingTaskId());
     formdata.append('document_index', this.currentCopy.toString());
 
@@ -171,7 +173,7 @@ export class TaskVerificationComponent implements OnInit {
 
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(img, 0, 0, img.width, img.height,     // source rectangle
-      0, 0, canvas.width, canvas.height); // destination rectangle 
+      0, 0, canvas.width, canvas.height); // destination rectangle
   }
 
   changeCurrentCopy(index, status) {
@@ -358,6 +360,7 @@ export class TaskVerificationComponent implements OnInit {
   openTaskFilesDialog(jobId: string): void {
     const formdata: FormData = new FormData();
     formdata.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
     formdata.append('job_id', jobId);
     this.http.post<any>(`${SERVER_URL}job/batch/info`, formdata).subscribe(
       (data) => {

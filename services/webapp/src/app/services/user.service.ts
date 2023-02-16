@@ -19,6 +19,7 @@ export class UserService implements CanActivate {
 
     this.currentUsername = localStorage.getItem('user_id')
     this.role = localStorage.getItem('role')
+    this.token = localStorage.getItem('token')
 
     let saveImages = localStorage.getItem('saveVerifiedImages')
     this.saveVerifiedImages = (saveImages && saveImages != "undefined") ? JSON.parse(localStorage.getItem('saveVerifiedImages')) : false
@@ -38,6 +39,7 @@ export class UserService implements CanActivate {
 
   signup(username, password, role) {
     const formdata: FormData = new FormData();
+    formdata.append('token', this.token);
     formdata.append('username', username);
     formdata.append('password', password);
     formdata.append('role', role);
@@ -50,6 +52,7 @@ export class UserService implements CanActivate {
     this.saveVerifiedImages = saveVerifiedImages;
     const formdata: FormData = new FormData();
     formdata.append('username', this.currentUsername);
+    formdata.append('token', this.token);
     formdata.append('saveVerifiedImages', (+saveVerifiedImages).toString());
     const url = SERVER_URL + 'updateSaveVerifiedImages';
 
@@ -60,6 +63,7 @@ export class UserService implements CanActivate {
     this.moodleStructureInd = moodleStructureInd;
     const formdata: FormData = new FormData();
     formdata.append('username', this.currentUsername);
+    formdata.append('token', this.token);
     formdata.append('moodleStructureInd', (+moodleStructureInd).toString());
     const url = SERVER_URL + 'updateMoodleStructureInd';
 

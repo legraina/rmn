@@ -24,6 +24,7 @@ import pytz
 import socketio
 import shutil
 import time
+from functools import wraps
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -56,6 +57,29 @@ r = redis.Redis(host=redis_host, port=6379, db=0)
 
 storage = Storage()
 
+def verify_token(role = None):
+    def _verify_token(f):
+        @wraps(f)
+        def __verify_token(*args, **kwargs):
+            # check if token provided
+            if "token" not in request_form:
+                return Response(
+                    response=json.dumps({"response": f"Error: token not provided."}),
+                    status=400,
+                )
+            # check if token valid
+            db = mongo_client["RMN"]
+            token = request_form['token']
+            if not UserService.verify_token(token, db, role):
+                return Response(
+                    response=json.dumps({"response": f"Error: token not valid. Please login."}),
+                    status=400,
+                )
+            return f()
+        return __verify_token
+    return _verify_token
+
+
 @app.route("/")
 def say_hello():
     return "<h1>Hi Hello Andy</h1>"
@@ -63,6 +87,7 @@ def say_hello():
 
 @app.route("/login", methods=["POST"])
 @cross_origin()
+@verify_token()
 def login():
     db = mongo_client["RMN"]
     return UserService.login(request, db)
@@ -70,19 +95,22 @@ def login():
 
 @app.route("/signup", methods=["POST"])
 @cross_origin()
+@verify_token("Administrateur")
 def signup():
     db = mongo_client["RMN"]
-    return UserService.signup(request, db)
+    return UserService.signup(request, db, True)
 
 
 @app.route("/updateSaveVerifiedImages", methods=["PUT"])
 @cross_origin()
+@verify_token()
 def update_user():
     db = mongo_client["RMN"]
     return UserService.update_save_verified_images(request, db)
 
 @app.route("/updateMoodleStructureInd", methods=["PUT"])
 @cross_origin()
+@verify_token()
 def update_moodle_structure_ind():
     db = mongo_client["RMN"]
     return UserService.update_moodle_structure_ind(request, db)
@@ -90,13 +118,15 @@ def update_moodle_structure_ind():
 
 @app.route("/password", methods=["POST"])
 @cross_origin()
+@verify_token()
 def change_password():
     db = mongo_client["RMN"]
-    return UserService.change_password(request, db)
+    return UserService.change_password(request, db, True)
 
 
 @app.route("/evaluate", methods=["POST"])
 @cross_origin()
+@verify_token()
 def evaluate():
     request_form = request.form
 
@@ -243,7 +273,6 @@ def evaluate():
 
     # Create SocketIO connection
     sio = socketio.Client()
-    print(socketio_host)
     sio.connect(f"http://{socketio_host}:7000")
 
     sio.emit(
@@ -283,7 +312,6 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
 
         # Create SocketIO connection
         sio = socketio.Client()
-        print(socketio_host)
         sio.connect(f"http://{socketio_host}:7000")
 
         db = mongo_client["RMN"]
@@ -323,6 +351,7 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
 
 @app.route("/template", methods=["POST"])
 @cross_origin()
+@verify_token()
 def create_template():
     db = mongo_client["RMN"]
     return TemplateService.create_template(request, db, storage)
@@ -330,6 +359,7 @@ def create_template():
 
 @app.route("/user/template", methods=["POST"])
 @cross_origin()
+@verify_token()
 def get_all_template_info():
     db = mongo_client["RMN"]
     return TemplateService.get_all_template_info(request, db)
@@ -337,6 +367,7 @@ def get_all_template_info():
 
 @app.route("/template/delete", methods=["POST"])
 @cross_origin()
+@verify_token()
 def delete_template():
     db = mongo_client["RMN"]
     return TemplateService.delete_template(request, db, storage)
@@ -344,6 +375,7 @@ def delete_template():
 
 @app.route("/template/info", methods=["POST"])
 @cross_origin()
+@verify_token()
 def get_template_info():
     db = mongo_client["RMN"]
     return TemplateService.get_template_info(request, db)
@@ -351,6 +383,7 @@ def get_template_info():
 
 @app.route("/template/download", methods=["POST"])
 @cross_origin()
+@verify_token()
 def download_template():
     db = mongo_client["RMN"]
     return TemplateService.download_template_file(request, db, storage)
@@ -358,6 +391,7 @@ def download_template():
 
 @app.route("/template/modify", methods=["POST"])
 @cross_origin()
+@verify_token()
 def modify_template():
     db = mongo_client["RMN"]
     return TemplateService.change_template_info(request, db)
@@ -365,6 +399,7 @@ def modify_template():
 
 @app.route("/jobs", methods=["POST"])
 @cross_origin()
+@verify_token()
 def get_jobs():
     # Define db and collection used
     db = mongo_client["RMN"]
@@ -402,6 +437,7 @@ def get_jobs():
 
 @app.route("/file/download", methods=["POST"])
 @cross_origin()
+@verify_token()
 def download_file():
     #
     request_form = request.form
@@ -483,6 +519,7 @@ def download_file():
 
 @app.route("/job/batch/info", methods=["POST"])
 @cross_origin()
+@verify_token()
 def get_info_zip():
     request_form = request.form
 
@@ -510,6 +547,7 @@ def get_info_zip():
 
 @app.route("/documents", methods=["POST"])
 @cross_origin()
+@verify_token()
 def get_documents():
     request_form = request.form
 
@@ -552,6 +590,7 @@ def get_documents():
 
 @app.route("/documents/update", methods=["POST"])
 @cross_origin()
+@verify_token()
 def update_document():
     request_form = request.form
 
@@ -625,6 +664,7 @@ def update_document():
 
 @app.route("/document/download", methods=["POST"])
 @cross_origin()
+@verify_token()
 def download_document():
     #
     request_form = request.form
@@ -684,6 +724,7 @@ def download_document():
 
 @app.route("/job/validate", methods=["POST"])
 @cross_origin()
+@verify_token()
 def validate():
     #
     request_form = request.form
@@ -722,7 +763,6 @@ def validate():
 
     # Create SocketIO connection
     sio = socketio.Client()
-    print(socketio_host)
     sio.connect(f"http://{socketio_host}:7000")
 
     sio.emit(
@@ -768,19 +808,8 @@ def validate():
     return Response(response=json.dumps({"response": "OK"}), status=200)
 
 
-@app.route("/job/delete", methods=["POST"])
-@cross_origin()
-def delete():
-    request_form = request.form
-
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400,
-        )
-
-    #
-    job_id = str(request_form["job_id"])
+def delete_job(job_id):
+    print("Delete job:", job_id)
 
     try:
         storage.remove(f"output_csv/{job_id}.csv")
@@ -826,12 +855,127 @@ def delete():
     except Exception as e:
         print(e)
 
+
+@app.route("/job/delete", methods=["POST"])
+@cross_origin()
+@verify_token()
+def delete():
+    request_form = request.form
+
+    if "job_id" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: job_id not provided."}),
+            status=400,
+        )
+
+    #
+    job_id = str(request_form["job_id"])
+    delete_job(job_id)
+
     #
     return Response(response=json.dumps({"response": "OK"}), status=200)
 
 
+def delete_old_jobs(n_days_old = 0, user_id = None):
+    db = mongo_client["RMN"]
+    collection = db["eval_jobs"]
+    r = {} if user_id is None else {"user_id": user_id}
+    jobs = collection.find(r)
+
+    now = datetime.utcnow()
+    n = 0
+    for j in jobs:
+        delta = now - j["queued_time"]
+        if delta.days >= n_days_old:
+            delete_job(j["job_id"])
+            n = n + 1
+
+    return n
+
+
+@app.route("/admin/delete/jobs", methods=["POST"])
+@cross_origin()
+def delete_jobs():
+    request_form = request.form
+
+    if "n_days_old" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: n_days_old not provided."}),
+            status=400,
+        )
+
+    #
+    n_days_old = int(request_form["n_days_old"])
+
+    user_id = None
+    if "username" in request_form:
+        user_id = str(request_form["username"])
+    elif "user_id" in request_form:
+        user_id = str(request_form["user_id"])
+
+    n = delete_old_jobs(n_days_old, user_id)
+
+    #
+    return Response(response=json.dumps({"response": "OK", "n_deleted_jobs": n}), status=200)
+
+
+@app.route("/admin/signup", methods=["POST"])
+@cross_origin()
+def signup():
+    db = mongo_client["RMN"]
+    return UserService.signup(request, db, False)
+
+
+@app.route("/admin/delete/tokens", methods=["POST"])
+@cross_origin()
+def delete_tokens():
+    db = mongo_client["RMN"]
+    return UserService.delete_tokens(request, db)
+
+@app.route("/admin/delete/user", methods=["POST"])
+@cross_origin()
+def delete_user():
+    request_form = request.form
+
+    if "username" not in request_form and "user_id" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: username and user_id not provided. Please one of these two fields."}),
+            status=400,
+        )
+
+    if "username" in request_form:
+        user_id = str(request_form["username"])
+    else:
+        user_id = str(request_form["user_id"])
+    #
+    delete_old_jobs(user_id=user_id)
+
+    #
+    db = mongo_client["RMN"]
+    UserService.delete(user_id, db)
+
+    #
+    return Response(response=json.dumps({"response": "OK"}), status=200)
+
+
+@app.route("/admin/users", methods=["POST"])
+@cross_origin()
+def users():
+    db = mongo_client["RMN"]
+    all_users = UserService.users(db)
+    return Response(response=json.dumps({"response": "OK", "users": all_users}), status=200)
+
+
+@app.route("/admin/change_password", methods=["POST"])
+@cross_origin()
+def admin_change_password():
+    db = mongo_client["RMN"]
+    return UserService.change_password(request, db, False)
+
+
 @app.route("/front_page", methods=["POST"])
 @cross_origin()
+@verify_token()
 def front_page():
     request_form = request.form
 

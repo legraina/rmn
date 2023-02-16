@@ -1,8 +1,57 @@
 from flask import Flask, request, Response, json, send_file
 from werkzeug.security import generate_password_hash,check_password_hash
+from datetime import datetime
+import uuid
 
 
 class UserService() :
+    def create_token(username, role, database):
+        token = str(uuid.uuid4())
+        collection = database["tokens"]
+        collection.insert_one({
+          "token": token,
+          "username": username,
+          "role": role,
+          "creation_time": datetime.utcnow()
+        })
+        return token
+
+
+    def verify_token(token, database, role = None):
+        collection = database["tokens"]
+        tokenDB = collection.find_one({"token": token})
+        if tokenDB is None:
+            return False
+        if role is None:
+            return True
+        return tokenDB["role"] != role
+
+   def delete_tokens(request, db):
+       request_form = request.form
+
+       r = {}
+       if "username" in request_form:
+           r["username"] = str(request_form["username"])
+       elif "user_id" in request_form:
+           r["username"] = str(request_form["user_id"])
+
+       collection = database["tokens"]
+       if "n_days_old" in request_form:
+           n_days_old = int(request_form["n_days_old"])
+           tokens = collection.find(r)
+           now = datetime.utcnow()
+           delete_tokens = []
+           for t in tokens:
+               delta = now - j["creation_time"]
+               if delta.days >= n_days_old:
+                   delete_tokens.append(t['token'])
+           r["token"] = {"$in": delete_tokens}
+           print("Tokens deleted:", len(delete_tokens))
+       collection.delete_many(r)
+       return Response(
+           response=json.dumps({"response": "OK"}),
+           status=200
+       )
 
     def login(request, database):
         request_form = request.form
@@ -27,9 +76,11 @@ class UserService() :
                 status=404,
             )
         if check_password_hash(userDB['password'], password) :
+            token = create_token(userDB['username'], userDB['role'], database)
             response = {
                     "username": userDB['username'],
                     "role": userDB['role'],
+                    "token": token,
                     "saveVerifiedImages": userDB['saveVerifiedImages'],
                     "moodleStructureInd": userDB['moodleStructureInd']
                 }
@@ -63,6 +114,7 @@ class UserService() :
                 response=json.dumps({"response": f"Error: password not provided."}),
                 status=400,
             )
+
         username = request_form['username']
         password = request_form['password']
         role = request_form['role']
@@ -71,7 +123,7 @@ class UserService() :
         collection = database["users"]
 
         isUserExisting = collection.count_documents({"username": username}) > 0
-        if isUserExisting : 
+        if isUserExisting :
             return Response(
                 response=json.dumps({"response": f"Nom d'utilisateur existant"}),
                 status=404,
@@ -143,14 +195,25 @@ class UserService() :
             response=json.dumps({"response": f'Utilisateur mise-à-jour'}),
         )
 
-    def change_password(request, database):
+    def delete(username, database):
+        collection = database["users"]
+        collection.delete_many({'username': username})
+        print("Delete user:", username)
+
+    def users(database):
+        collection = database["users"]
+        users = collection.find()
+        return [u['username'] for u in users]
+
+
+    def change_password(request, database, verify_old_password):
         request_form = request.form
         if "username" not in request_form:
             return Response(
                 response=json.dumps({"response": f"Error: username not provided."}),
                 status=400,
             )
-        if "old_password" not in request_form:
+        if verify_old_password and "old_password" not in request_form:
             return Response(
                 response=json.dumps({"response": f"Error: old_password not provided."}),
                 status=400,
@@ -162,17 +225,17 @@ class UserService() :
             )
         username = request_form['username']
         collection = database["users"]
-        old_password = request_form['old_password']
         new_password = request_form['new_password']
 
         collection = database["users"]
         userDB = collection.find_one({"username": username})
 
-        if not check_password_hash(userDB['password'], old_password) :
-
-            return Response(
-                response=json.dumps({"response": 'Le mot de passe entré est incorrect!'}),
-                status=500
+        if verify_old_password:
+            old_password = request_form['old_password']
+            if not check_password_hash(userDB['password'], old_password) :
+                return Response(
+                    response=json.dumps({"response": 'Le mot de passe entré est incorrect!'}),
+                    status=500
                 )
 
 

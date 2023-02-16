@@ -2,6 +2,7 @@ import { Component, OnInit, Inject } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { MAT_DIALOG_DATA} from '@angular/material/dialog';
 import { NotificationService } from 'src/app/services/notification.service';
+import { UserService } from 'src/app/services/user.service';
 import { saveAs } from 'file-saver';
 import { HttpClient, HttpEventType } from '@angular/common/http';
 import { SERVER_URL } from 'src/app/utils';
@@ -23,6 +24,7 @@ export class TaskFilesDialogComponent implements OnInit {
   constructor(
     public dialogRef: MatDialogRef<TaskFilesDialogComponent>,
     private notifyService : NotificationService,
+    private userService: UserService,
     private http: HttpClient,
     @Inject(MAT_DIALOG_DATA) public data: DialogData
   ) { }
@@ -68,15 +70,16 @@ export class TaskFilesDialogComponent implements OnInit {
 
   downloadFile(requestURL : string, filename : string, fileType: string, index : number){
     const formdata: FormData = new FormData();
+    formdata.append('token', this.userService.token);
     formdata.append('job_id', this.data.taskId);
     formdata.append('file', fileType);
     formdata.append('zip_index', index.toString());
-    if ( !this.downloading) { 
+    if ( !this.downloading) {
       this.downloading = true;
       // this.notifyService.showInfo('Téléchargement...', "")
       this.http.post(requestURL, formdata, {responseType: 'blob', reportProgress: true, observe: "events"}).subscribe(
         (data) => {
-          if (data.type == HttpEventType.DownloadProgress) { 
+          if (data.type == HttpEventType.DownloadProgress) {
             this.downloadProgress = data.total ? Math.round(100 * data.loaded / data.total) : 0
           } else if (data.type == HttpEventType.Response) {
             let typeExport = 'text/csv'
@@ -86,7 +89,7 @@ export class TaskFilesDialogComponent implements OnInit {
             const file = new Blob([data.body as any], { type: typeExport });
             let downloadURL = window.URL.createObjectURL(file);
             saveAs(downloadURL, filename);
-            
+
             this.downloading = false;
             this.downloadProgress = 0;
           }
@@ -96,11 +99,11 @@ export class TaskFilesDialogComponent implements OnInit {
           this.downloading = false;
           this.downloadProgress = 0;
         });
-    } else { 
+    } else {
       this.notifyService.showWarning("Un fichier est en cours de téléchargement!", "Attention" )
     }
-        
-    
+
+
   }
 
   cancel(): void {

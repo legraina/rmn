@@ -129,6 +129,7 @@ export class NewCorrectionComponent implements OnInit {
   async getTemplates() {
     const formdata: FormData = new FormData();
     formdata.append('user_id', this.userService.currentUsername);
+    formdata.append('token', this.userService.token);
     this.http.post<any>(`${SERVER_URL}user/template`, formdata).subscribe(
       (data) => {
         this.templates = data['response'];
@@ -200,7 +201,7 @@ export class NewCorrectionComponent implements OnInit {
       return true;
     } else if (this.taskName === "") {
       return true;
-    } 
+    }
     else {
       return false;
     }
@@ -256,7 +257,7 @@ export class NewCorrectionComponent implements OnInit {
       await this.convertDownloadableFile();
       await this.convertDownloadableCSV();
       let template_name = this.templates.find(template => template['template_id'] == this.selectedTemplate)['template_name'];
-      
+
       this.tasksService.addTask(this.copies, this.csv, this.selectedTemplate, this.numberPages, this.taskName, template_name);
     }
   }

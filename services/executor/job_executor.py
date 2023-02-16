@@ -48,7 +48,8 @@ if __name__ == "__main__":
     if not job:
         print("No job! Exiting...")
         exit()
-    print("Job:", job)
+    job_object = json.loads(job)
+    print("Job:", job_object)
 
     #
     print("Setting up MongoClient...")
@@ -64,10 +65,9 @@ if __name__ == "__main__":
     sio = socketio.Client()
     sio.connect(f"http://{socketio_host}:7000")
 
-    queue_object = json.loads(job)
     try:
-        job_id = queue_object["job_id"]
-        user_id = queue_object["user_id"]
+        job_id = job_object["job_id"]
+        user_id = job_object["user_id"]
     except Exception as e:
         print(e)
         mongo_client.close()
@@ -86,10 +86,10 @@ if __name__ == "__main__":
     stopH = StopHandler(collection_eval_jobs, job_id)
 
     def process():
-        job_type = queue_object["job_type"]
+        job_type = job_object["job_type"]
         if job_type == "validation":
             #
-            moodle_ind = bool(int(queue_object["moodle_ind"]))
+            moodle_ind = bool(int(job_object["moodle_ind"]))
 
             #
             user = collection_user.find_one({"username": user_id})
@@ -343,7 +343,7 @@ if __name__ == "__main__":
 
             # Query job params
             print("Querying job details from Database...")
-            job_params = collection_eval_jobs.find_one({"job_id": job})
+            job_params = collection_eval_jobs.find_one({"job_id": job_id})
             print(job_params)
 
             if not job_params:
@@ -373,7 +373,7 @@ if __name__ == "__main__":
                 str(OUTPUT_FOLDER.joinpath("notes.csv")),
                 "-e",
                 "--job_id",
-                job,
+                job_id,
                 "--user_id",
                 user_id,
                 "--template_id",
@@ -389,14 +389,14 @@ if __name__ == "__main__":
 
             if stopH.stop():
                 print("Job has been deleted.")
-                storage.remove(f"csv/{job}.csv")
-                storage.remove(f"zips/{job}.zip")
+                storage.remove(f"csv/{job_id}.csv")
+                storage.remove(f"zips/{job_id}.zip")
                 return
 
             # Error handling
             if exit_code != 0:
                 collection_eval_jobs.update_one(
-                    {"job_id": job},
+                    {"job_id": job_id},
                     {
                         "$set": {
                             "job_status": Job_Status.ERROR.value,
@@ -408,41 +408,41 @@ if __name__ == "__main__":
                     "jobs_status",
                     json.dumps(
                         {
-                            "job_id": job,
+                            "job_id": job_id,
                             "user_id": user_id,
                             "status": Job_Status.ERROR.value,
                         }
                     ),
                 )
                 print("Error in process-copy!")
-                storage.remove(f"csv/{job}.csv")
-                storage.remove(f"zips/{job}.zip")
+                storage.remove(f"csv/{job_id}.csv")
+                storage.remove(f"zips/{job_id}.zip")
                 return
 
             print("Module Done")
 
             # Save output files in storage
             folder = "output_csv/"
-            filename = f"{job}.csv"
+            filename = f"{job_id}.csv"
             notes_csv_file_id = f"{folder}{filename}"
             storage.move_to(str(OUTPUT_FOLDER.joinpath("notes.csv")), notes_csv_file_id)
 
             folder = "output_zip/"
-            filename = f"{job}.zip"
+            filename = f"{job_id}.zip"
             moodle_zip_file_id = f"{folder}{filename}"
             storage.move_to(str(MOODLE_ZIP), moodle_zip_file_id)
 
             moodle_zip_id_list = [moodle_zip_file_id]
             i = 1
             for file_path in WORK_TMP_DIR.glob("moodle*.zip"):
-                moodle_zip_file_id = f"{folder}{job}_{i}.zip"
+                moodle_zip_file_id = f"{folder}{job_id}_{i}.zip"
                 storage.move_to(str(file_path), moodle_zip_file_id)
                 moodle_zip_id_list.append(moodle_zip_file_id)
                 i = i + 1
 
             collection_output.insert_one(
                 {
-                    "job_id": job,
+                    "job_id": job_id,
                     "notes_csv_file_id": notes_csv_file_id,
                     "preview_file_id": "None",
                     "moodle_zip_id_list": moodle_zip_id_list,
@@ -451,22 +451,22 @@ if __name__ == "__main__":
 
             # Set Job status to VALIDATION
             collection_eval_jobs.update_one(
-                {"job_id": job}, {"$set": {"job_status": Job_Status.VALIDATION.value}}
+                {"job_id": job_id}, {"$set": {"job_status": Job_Status.VALIDATION.value}}
             )
 
             sio.emit(
                 "jobs_status",
                 json.dumps(
                     {
-                        "job_id": job,
+                        "job_id": job_id,
                         "status": Job_Status.VALIDATION.value,
                         "user_id": user_id,
                     }
                 ),
             )
 
-            storage.remove(f"csv/{job}.csv")
-            storage.remove(f"zips/{job}.zip")
+            storage.remove(f"csv/{job_id}.csv")
+            storage.remove(f"zips/{job_id}.zip")
         else:
             print(f"Type '{job_type}' not handled.")
 
