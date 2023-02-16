@@ -101,18 +101,13 @@ if __name__ == "__main__":
             moodle_zip_id_list = output["moodle_zip_id_list"]
 
             #
+            VALIDATE_FOLDER.mkdir(exist_ok=True)
             tmp_copies_folder_path = VALIDATE_FOLDER.joinpath("copies")
             tmp_copies_folder_path.mkdir(exist_ok=True)
             validated_copies_folder_path = VALIDATE_FOLDER.joinpath(
                 "validated_copies"
             )
-            validated_copies_folder_path.mkdir(exist_ok=True)  # create tree
-            
-            for root, dirs, files in os.walk(str(VALIDATE_FOLDER)):
-                for d in dirs:
-                    print os.path.join(root, d)
-                for f in files:
-                    print os.path.join(root, f)
+            validated_copies_folder_path.mkdir(exist_ok=True)
 
             # Save file to local
             file_path = str(VALIDATE_FOLDER.joinpath('notes.csv'))
@@ -126,12 +121,9 @@ if __name__ == "__main__":
             docs = collection.find({"job_id": job_id})
 
             #
-            print(f"Docs: {docs}")
-            print(f"index: {df.index.tolist()}")
             print(f"Col: {df.columns}")
 
             for document_index, doc in enumerate(docs):
-                print(f'{doc["matricule"]}')
                 if str(doc["matricule"]) in df.index.values:
                     for key in doc["subquestion_predictions"].keys():
                         df.loc[str(doc["matricule"]), key] = doc["subquestion_predictions"][
@@ -140,8 +132,6 @@ if __name__ == "__main__":
                     df.loc[str(doc["matricule"]), "Note"] = doc["total"]
 
             #
-            counter = 0
-
             collection.update_many(
                 {"job_id": job_id},
                 {
@@ -151,6 +141,7 @@ if __name__ == "__main__":
                 },
             )
 
+            counter = 0
             for i, id in enumerate(moodle_zip_id_list):
                 # moodle_i
                 moodle_folder_name = f"moodle_{i}"
@@ -228,6 +219,7 @@ if __name__ == "__main__":
                             os.rename(str(file), str(dest))
 
                         exec_time = time.time() - start_time
+                        counter += 1
 
                         collection.update_one(
                             {
@@ -237,7 +229,7 @@ if __name__ == "__main__":
                             },
                             {
                                 "$set": {
-                                    "document_index": counter + 1,
+                                    "document_index": counter,
                                     "execution_time": exec_time,
                                     "status": Document_Status.READY.value,
                                 }
@@ -250,7 +242,7 @@ if __name__ == "__main__":
                                 {
                                     "job_id": job_id,
                                     "user_id": user_id,
-                                    "document_index": counter + 1,
+                                    "document_index": counter,
                                     "execution_time": exec_time,
                                     "status": Document_Status.READY.value,
                                     "n_total_doc": n_total_doc,
@@ -258,13 +250,11 @@ if __name__ == "__main__":
                             ),
                         )
 
-                        counter += 1
-
                 #
                 shutil.make_archive(
                     str(VALIDATE_FOLDER.joinpath(moodle_folder_name)),
                     "zip",
-                    str(validated_copies_folder_path.joinpath(moodle_folder_name)),
+                    str(validated_copies_folder_path.joinpath(moodle_folder_name))
                 )
 
                 try:
@@ -282,6 +272,33 @@ if __name__ == "__main__":
             try:
                 n_csv = f"output_csv/{job_id}.csv"
                 storage.move_to(file_path, n_csv)
+
+                #
+                collection_output.update_one(
+                    {"job_id": job_id}, {"$set": {"notes_csv_file_id": notes_csv_file_id}}
+                )
+
+                #
+                collection_eval_jobs.update_one(
+                    {"job_id": job_id},
+                    {
+                        "$set": {
+                            "job_status": Job_Status.ARCHIVED.value,
+                            "notes_file_id": notes_csv_file_id,
+                        }
+                    },
+                )
+
+                sio.emit(
+                    "jobs_status",
+                    json.dumps(
+                        {
+                            "job_id": job_id,
+                            "status": Job_Status.ARCHIVED.value,
+                            "user_id": user_id,
+                        }
+                    ),
+                )
             except Exception as e:
                 print("Error while moving file to storage")
                 collection_eval_jobs.update_one(
@@ -292,36 +309,9 @@ if __name__ == "__main__":
                         }
                     },
                 )
-                return
-
-            #
-            collection_output.update_one(
-                {"job_id": job_id}, {"$set": {"notes_csv_file_id": notes_csv_file_id}}
-            )
-
-            #
-            collection_eval_jobs.update_one(
-                {"job_id": job_id},
-                {
-                    "$set": {
-                        "job_status": Job_Status.ARCHIVED.value,
-                        "notes_file_id": notes_csv_file_id,
-                    }
-                },
-            )
-
-            sio.emit(
-                "jobs_status",
-                json.dumps(
-                    {
-                        "job_id": job_id,
-                        "status": Job_Status.ARCHIVED.value,
-                        "user_id": user_id,
-                    }
-                ),
-            )
 
             # delete preview image
+            print("Clean documents and unverified_numbers")
             docs = collection.find({"job_id": job_id})
             for doc in docs:
                 # delete unverified numbers for job
