@@ -101,17 +101,21 @@ if __name__ == "__main__":
             moodle_zip_id_list = output["moodle_zip_id_list"]
 
             #
-            validate_tmp_folder_path = VALIDATE_FOLDER.joinpath(f"{job_id}")
-            tmp_copies_folder_path = validate_tmp_folder_path.joinpath("copies")
+            tmp_copies_folder_path = VALIDATE_FOLDER.joinpath("copies")
             tmp_copies_folder_path.mkdir(exist_ok=True)
-            validated_copies_folder_path = validate_tmp_folder_path.joinpath(
+            validated_copies_folder_path = VALIDATE_FOLDER.joinpath(
                 "validated_copies"
             )
             validated_copies_folder_path.mkdir(exist_ok=True)  # create tree
+            
+            for root, dirs, files in os.walk(str(VALIDATE_FOLDER)):
+                for d in dirs:
+                    print os.path.join(root, d)
+                for f in files:
+                    print os.path.join(root, f)
 
             # Save file to local
-            filename = f"{job_id}_notes.csv"
-            file_path = str(validate_tmp_folder_path.joinpath(filename))
+            file_path = str(VALIDATE_FOLDER.joinpath('notes.csv'))
             storage.copy_from(notes_csv_file_id, file_path)
             print("notes.csv file created")
 
@@ -148,12 +152,12 @@ if __name__ == "__main__":
             )
 
             for i, id in enumerate(moodle_zip_id_list):
-                # <job_id>_moodle_0
-                moodle_folder_name = f"{job_id}_moodle_{i}"
-                # <job_id>_moodle_0.zip
-                filename = f"{moodle_folder_name}.zip"
+                # moodle_i
+                moodle_folder_name = f"moodle_{i}"
+                # moodle_i.zip
+                moodle_filename = f"{moodle_folder_name}.zip"
                 # validated_tmp_folder/<job_id>_moodle_0.zip
-                file_p = str(validate_tmp_folder_path.joinpath(filename))
+                file_p = str(VALIDATE_FOLDER.joinpath(moodle_filename))
                 storage.copy_from(id, file_p)
                 # validated_tmp_folder/copies/[1.pdf, 2.pdf]
                 shutil.unpack_archive(file_p, tmp_copies_folder_path)
@@ -258,13 +262,13 @@ if __name__ == "__main__":
 
                 #
                 shutil.make_archive(
-                    str(validate_tmp_folder_path.joinpath(moodle_folder_name)),
+                    str(VALIDATE_FOLDER.joinpath(moodle_folder_name)),
                     "zip",
                     str(validated_copies_folder_path.joinpath(moodle_folder_name)),
                 )
 
                 try:
-                    c_zip = str(validate_tmp_folder_path.joinpath(filename))
+                    c_zip = str(VALIDATE_FOLDER.joinpath(moodle_filename))
                     storage.move_to(c_zip, id)
                 except Exception as e:
                     print(e)
@@ -472,8 +476,8 @@ if __name__ == "__main__":
 
     try:
         process()
-    except:
-        pass
+    except Exception as e:
+        print(e)
 
     # clean WORK_TMP_DIR
     shutil.rmtree(WORK_TMP_DIR)

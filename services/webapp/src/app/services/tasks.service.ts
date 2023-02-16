@@ -129,7 +129,7 @@ export class TasksService {
 
     const formdataJobs: FormData = new FormData();
     formdataJobs.append('user_id', this.userService.currentUsername);
-    formdata.append('token', this.userService.token);
+    formdataJobs.append('token', this.userService.token);
     this.http.post<any>(`${SERVER_URL}jobs`, formdataJobs).subscribe(
       (data) => {
         tasks = data['response']

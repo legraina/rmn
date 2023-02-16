@@ -19,7 +19,7 @@ def on_join(room):
     # client_type = Client_Type(room)
     join_room(room)
     print(f"Joined room {room}")
-    
+
 
 
 @socketio.on("leave")
