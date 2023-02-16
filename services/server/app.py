@@ -784,10 +784,20 @@ def delete():
 
     try:
         storage.remove(f"output_csv/{job_id}.csv")
+    except Exception as e:
+        print(e)
+    try:
+        storage.remove(f"csv/{job_id}.csv")
+    except Exception as e:
+        print(e)
+    try:
         storage.remove(f"output_zip/{job_id}.zip")
     except Exception as e:
         print(e)
-
+    try:
+        storage.remove(f"zips/{job_id}.zip")
+    except Exception as e:
+        print(e)
     try:
         storage.remove_tree(f"documents/{job_id}")
     except Exception as e:
@@ -798,7 +808,7 @@ def delete():
     collection = db["job_documents"]
     collection_eval_jobs = db["eval_jobs"]
     collection_output = db["jobs_output"]
-    
+
     #
     try:
         collection.delete_many({"job_id": job_id})
