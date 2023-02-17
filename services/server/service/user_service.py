@@ -29,14 +29,13 @@ class UserService:
     def verify_token(token, database, role = None):
         collection = database["tokens"]
         tokenDB = collection.find_one({"token": token})
-        print("token:", tokenDB, "role:", role)
         if tokenDB is None:
             return False
         if role is None:
             return True
         return tokenDB["role"] == role.value
 
-    def delete_tokens(request, db):
+    def delete_tokens(request, database):
        request_form = request.form
 
        r = {}
