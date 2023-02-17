@@ -562,7 +562,7 @@ def grade_all(
     sio.disconnect()
     # raise error if cannot detect any grades in any copies
     if max_nb_question == 1:
-        raise Exception
+        print("WARNING: Only one grade box has been found.")
 
     # check the number of files that have benn dropped on moodle if any
     n = 0
@@ -618,8 +618,6 @@ def grade_all(
             sdf.to_csv(f)
         except:
             df.to_csv(f)
-
-    print("here 3")
 
 
 def compare_all(paths, grades_csv, box, dpi=300, shape=(8.5, 11)):

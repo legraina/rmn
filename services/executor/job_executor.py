@@ -395,9 +395,9 @@ if __name__ == "__main__":
                 zip_ref.extractall(EXTRACT_FOLDER)
 
             args = [
-                EXTRACT_FOLDER,
+                str(EXTRACT_FOLDER),
                 "-m",
-                MOODLE_FOLDER,
+                str(MOODLE_FOLDER),
                 "-g",
                 "exam",
                 "--grades",

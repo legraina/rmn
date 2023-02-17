@@ -214,4 +214,4 @@ def run_args(args):
 
 def parse_run_args(args):
     args = parser.parse_args(args)
-    process_args(args)
+    run_args(args)

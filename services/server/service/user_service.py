@@ -140,8 +140,8 @@ class UserService:
             "username": username,
             "password": hashed_password,
             "role": role,
-            "saveVerifiedImages": request_form.get("saveVerifiedImages", False),
-            "moodleStructureInd": request_form.get("moodleStructureInd", False),
+            "saveVerifiedImages": "saveVerifiedImages" in request_form,
+            "moodleStructureInd": "moodleStructureInd" in request_form
         }
         collection.insert_one(user)
 
