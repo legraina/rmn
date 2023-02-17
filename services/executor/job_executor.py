@@ -2,6 +2,7 @@ import redis
 import configparser
 from pymongo import MongoClient
 from pathlib import Path
+from python.process_copy.parser import parse_run_args
 from utils.utils import Job_Status, Document_Status
 from utils.storage import Storage
 from utils.stop_handler import StopHandler
@@ -394,9 +395,6 @@ if __name__ == "__main__":
                 zip_ref.extractall(EXTRACT_FOLDER)
 
             args = [
-                "python3",
-                "-m",
-                "python.process_copy",
                 EXTRACT_FOLDER,
                 "-m",
                 MOODLE_FOLDER,
@@ -417,17 +415,18 @@ if __name__ == "__main__":
             ]
             print("Running module with:", args)
             # process_copy
-            proc = subprocess.Popen(args)
-            exit_code = proc.wait()
+            try:
+                parse_run_args(args)
+            except Exception as e:
+                print("Error in process-copy:", e)
 
-            if stopH.stop():
-                print("Job has been deleted.")
-                storage.remove(f"csv/{job_id}.csv")
-                storage.remove(f"zips/{job_id}.zip")
-                return
+                if stopH.stop():
+                    print("Job has been deleted.")
+                    storage.remove(f"csv/{job_id}.csv")
+                    storage.remove(f"zips/{job_id}.zip")
+                    return
 
-            # Error handling
-            if exit_code != 0:
+                # Error handling
                 collection_eval_jobs.update_one(
                     {"job_id": job_id},
                     {
@@ -447,7 +446,7 @@ if __name__ == "__main__":
                         }
                     ),
                 )
-                print("Error in process-copy!")
+
                 storage.remove(f"csv/{job_id}.csv")
                 storage.remove(f"zips/{job_id}.zip")
                 return
