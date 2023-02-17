@@ -55,4 +55,5 @@ spec:
           env:
             - name: STORAGE
               value: /mnt/storage
+          terminationMessagePolicy: FallbackToLogsOnError
       restartPolicy: Always

@@ -11,17 +11,16 @@ RUN apt-get update \
     && apt-get install -y poppler-utils \
     && apt-get install -y build-essential \
     && apt-get install -y python3-dev \
-    && apt-get install -y python3-opencv
+    && apt-get install -y python3-opencv \
+    && pip3 install --upgrade pip
 
 WORKDIR /Executor
 
 COPY ./requirements.txt ./requirements.txt
 
-RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
 
-RUN pip uninstall -y PyCrypto
-RUN pip install PyCryptodome
+RUN pip uninstall -y PyCrypto && pip install PyCryptodome
 
 COPY . .
 
