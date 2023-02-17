@@ -929,8 +929,19 @@ def admin_signup():
 @app.route("/admin/delete/tokens", methods=["POST"])
 @cross_origin()
 def admin_delete_tokens():
+    request_form = request.form
+    user_id = None
+    if "username" in request_form:
+        user_id = str(request_form["username"])
+    elif "user_id" in request_form:
+        user_id = str(request_form["user_id"])
+    n_days_old = int(request_form["n_days_old"]) if "n_days_old" in request_form else 0
     db = mongo_client["RMN"]
-    return UserService.delete_tokens(request, db)
+    UserService.delete_tokens(user_id, n_days_old, db)
+    return Response(
+        response=json.dumps({"response": "OK"}),
+        status=200
+    )
 
 @app.route("/admin/delete/user", methods=["POST"])
 @cross_origin()

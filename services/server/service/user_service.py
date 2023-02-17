@@ -35,18 +35,13 @@ class UserService:
             return True
         return tokenDB["role"] == role.value
 
-    def delete_tokens(request, database):
-       request_form = request.form
-
+    def delete_tokens(username, n_days_old, database):
        r = {}
-       if "username" in request_form:
-           r["username"] = str(request_form["username"])
-       elif "user_id" in request_form:
-           r["username"] = str(request_form["user_id"])
+       if username:
+           r["username"] = username
 
        collection = database["tokens"]
-       if "n_days_old" in request_form:
-           n_days_old = int(request_form["n_days_old"])
+       if n_days_old > 0:
            tokens = collection.find(r)
            now = datetime.utcnow()
            delete_tokens = []
@@ -57,10 +52,6 @@ class UserService:
            r["token"] = {"$in": delete_tokens}
            print("Tokens deleted:", len(delete_tokens))
        collection.delete_many(r)
-       return Response(
-           response=json.dumps({"response": "OK"}),
-           status=200
-       )
 
     def login(request, database):
         request_form = request.form
@@ -210,6 +201,7 @@ class UserService:
         )
 
     def delete(username, database):
+        UserService.delete_tokens(username, 0, database)
         collection = database["users"]
         collection.delete_many({'username': username})
         print("Delete user:", username)
