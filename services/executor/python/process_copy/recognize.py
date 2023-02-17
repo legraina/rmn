@@ -35,7 +35,7 @@ from keras.models import load_model
 from pdf2image import convert_from_path
 from PIL import Image
 from datetime import datetime
-from process_copy.config import re_mat
+from process_copy.config import re_mat, len_mat
 from process_copy.config import MoodleFields as MF
 from process_copy.mcc import get_name, load_csv
 from process_copy.preview import PreviewHandler
@@ -55,7 +55,6 @@ corrected_decimals = [
     "5",
     "75",
 ]  # for length 1, use first one, lenght 2, use second one ...
-len_mat = 7
 RED = (225, 6, 0)
 GREEN = (0, 154, 23)
 ORANGE = (255, 127, 0)
@@ -383,6 +382,14 @@ def grade_all(
                 # search matricule in filename
                 m = re.search(re_mat, f)
                 file = os.path.join(root, f)
+
+                # search matricule in forlder name
+                # use folder name: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
+                if not m:
+                    par_dir = root.rsplit('/', 1)[-1]
+                    dir_split = par_dir.split("_")
+                    if len(dir_split) > 3:
+                        m = re.search(re_mat, dir_split[2])
 
                 if not m:
                     # Find matricule in pdf file

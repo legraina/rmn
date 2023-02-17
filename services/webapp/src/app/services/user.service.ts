@@ -43,8 +43,8 @@ export class UserService implements CanActivate {
     formdata.append('username', username);
     formdata.append('password', password);
     formdata.append('role', role);
-    formdata.append('saveVerifiedImages', this.saveVerifiedImages);
-    formdata.append('moodleStructureInd', this.moodleStructureInd);
+    if (this.saveVerifiedImages) formdata.append('saveVerifiedImages', "on");
+    if (this.moodleStructureInd) formdata.append('moodleStructureInd', "on");
     let url = SERVER_URL + "signup"
 
     return this.http.post(url, formdata)

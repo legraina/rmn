@@ -1,9 +1,17 @@
 # Reconaissance des matricules et notes
 
+### User guide
+
+- Add a front page to your copy, if necessary, to grade them
+- Define a template to mark the zone where to search the grades and matricules (if necessary). If searching matricules, the app will also automatically search for the matricule on the top right corner of all pages except the front page.
+- Start a new correction. If a column matching the regex '(?i)(gr|groupe?s?)$' is found, the corresponding content will be used to separate the copies into sub directories. The csv file must include a 'matricule' column as well as a 'Nom complet' column. Using a moodle csv file works immediately (you should fix the maximum grade).
+- Then validate grades and matricules if necessary (it's not necessary if using directly moodle zip file or if each file contain it in its name).
+- Then finalize and download the resulting cvs file, all the copies renamed and split into groups (if provided), and the zip files to upload to moodle (as well as the csv file).
+
 ### General information for installation
 
 ##### Nginx
-You may have to deploy an nginx reverse proxy to point to the kubernetes server. You may adapt the nginx.conf file for this purpose.
+You should deploy an nginx reverse proxy to point to the kubernetes server. You may adapt the nginx.conf file for this purpose (especially, enter your own certificate and set your server name).
 
 ##### Ingress
 nginx is only used as a reverse proxy to redirect all requests to kubernetes and to handle certificates.
@@ -74,7 +82,7 @@ kubectl delete pods <modified deployment pod>
 
 ### Admin commands
 
-They need to be run locally from the server.
+They need to be run locally from the server (depending on nginx/ingress configuration).
 
 ##### Create a user
 Role can be either "Utilisateur" or "Administrateur":

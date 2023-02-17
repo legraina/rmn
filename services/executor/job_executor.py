@@ -117,6 +117,12 @@ if __name__ == "__main__":
             #
             df = pd.read_csv(file_path, index_col="Matricule", dtype={"Matricule": str})
 
+            # check if group or gr column is present
+            group_label = None
+            group_df = df.filter(regex='(?i)(gr|groupe?s?)$')
+            if group_df.shape[1] == 1:
+                group_label = group_df.columns[0]
+
             #
             docs = collection.find({"job_id": job_id})
 
@@ -217,11 +223,13 @@ if __name__ == "__main__":
                             # transfert file to folder
                             shutil.copy(str(file), str(m_dest))
 
-                            dest = all_copies_folder_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
-                            os.rename(str(file), str(dest))
-                        else:
-                            dest = moodle_folder_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
-                            os.rename(str(file), str(dest))
+                        copies_path = all_copies_folder_path
+                        if group_label:
+                            group = df.at[str(doc["matricule"]), group_label]
+                            copies_path = copies_path.joinpath(str(group))
+                            copies_path.mkdir(exist_ok=True)
+                        dest = copies_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
+                        os.rename(str(file), str(dest))
 
                         exec_time = time.time() - start_time
                         counter += 1
@@ -256,33 +264,39 @@ if __name__ == "__main__":
                         )
 
                 #
-                shutil.make_archive(
-                    str(VALIDATE_FOLDER.joinpath(moodle_folder_name)),
-                    "zip",
-                    str(moodle_folder_path)
-                )
+                if moodle_ind:
+                    shutil.make_archive(
+                        str(VALIDATE_FOLDER.joinpath(moodle_folder_name)),
+                        "zip",
+                        str(moodle_folder_path)
+                    )
 
-                try:
-                    c_zip = str(VALIDATE_FOLDER.joinpath(moodle_filename))
-                    storage.move_to(c_zip, id)
-                except Exception as e:
-                    print(e)
+                    try:
+                        c_zip = str(VALIDATE_FOLDER.joinpath(moodle_filename))
+                        storage.move_to(c_zip, id)
+                    except Exception as e:
+                        print(e)
+                else:
+                    storage.remove(id)
 
+            # create zip with all copies (gathered by group if enabled)
+            shutil.make_archive(
+                str(VALIDATE_FOLDER.joinpath("all")),
+                "zip",
+                str(all_copies_folder_path)
+            )
+            zip_file_id = f"output_zip/{job_id}_all.zip"
+            try:
+                all_zip_name = str(VALIDATE_FOLDER.joinpath("all"))
+                c_zip = f"{all_zip_name}.zip"
+                storage.move_to(c_zip, zip_file_id)
+            except Exception as e:
+                print(e)
+
+            # update zip list
+            zip_id_list = [zip_file_id]
             if moodle_ind:
-                shutil.make_archive(
-                    str(VALIDATE_FOLDER.joinpath("all")),
-                    "zip",
-                    str(all_copies_folder_path)
-                )
-                zip_file_id = f"output_zip/{job_id}_all.zip"
-                try:
-                    all_zip_name = str(VALIDATE_FOLDER.joinpath("all"))
-                    c_zip = f"{all_zip_name}.zip"
-                    storage.move_to(c_zip, zip_file_id)
-                except Exception as e:
-                    print(e)
-
-                moodle_zip_id_list = [zip_file_id] + moodle_zip_id_list
+                zip_id_list += moodle_zip_id_list
 
 
             df.to_csv(file_path, mode="w+")
@@ -300,7 +314,7 @@ if __name__ == "__main__":
                     {"job_id": job_id},
                     {"$set": {
                         "notes_csv_file_id": notes_csv_file_id,
-                        "moodle_zip_id_list": moodle_zip_id_list
+                        "moodle_zip_id_list": zip_id_list
                     }})
 
                 #

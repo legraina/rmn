@@ -1,5 +1,6 @@
 # regex to find a matricule: 7 digits followed by not a number or the end of the line
 re_mat = '[1-2]\\d{6}(?=(?:\\D|$))'
+len_mat = 7
 
 grade_box = {
     "devoir": {
