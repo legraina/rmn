@@ -37,12 +37,13 @@ export class UserService implements CanActivate {
     return this.http.post(url, formdata)
   }
 
-  signup(username, password, role) {
+  signup(n_username, n_password, n_role) {
     const formdata: FormData = new FormData();
+    console.log(n_username, n_password, n_role);
     formdata.append('token', this.token);
-    formdata.append('username', username);
-    formdata.append('password', password);
-    formdata.append('role', role);
+    formdata.append('username', n_username);
+    formdata.append('password', n_password);
+    formdata.append('role', n_role);
     let url = SERVER_URL + "signup"
 
     return this.http.post(url, formdata)

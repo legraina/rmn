@@ -34,6 +34,7 @@ export class CreateUserDialogComponent implements OnInit {
   }
 
   attemptCreate() {
+    console.log(this.username, this.pass, this.selected);
     if (this.username.length == 0 || this.pass.length == 0 || this.passRepeat.length == 0) {
       this.notification.showWarning("Veuillez remplir le(s) champ(s) vide(s)!", "Champ Vide");
     }
@@ -58,4 +59,3 @@ export class CreateUserDialogComponent implements OnInit {
   }
 
 }
-

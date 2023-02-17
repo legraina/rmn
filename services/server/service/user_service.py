@@ -10,7 +10,7 @@ class Role(Enum):
     ADMIN = "Administrateur"
 
     def available(role):
-        return role == Role.USER or role == Role.ADMIN
+        return role == Role.USER.value or role == Role.ADMIN.value
 
 
 class UserService:
@@ -34,7 +34,7 @@ class UserService:
             return False
         if role is None:
             return True
-        return tokenDB["role"] == role
+        return tokenDB["role"] == role.value
 
     def delete_tokens(request, db):
        request_form = request.form
