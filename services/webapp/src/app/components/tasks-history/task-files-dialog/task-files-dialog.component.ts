@@ -46,7 +46,12 @@ export class TaskFilesDialogComponent implements OnInit {
   }
 
   setDefaultZipValues(index : number) : string{
-    let value : string = "copies-" + index.toString();
+    let value : string;
+    if (index == 0) {
+      value = "copies";
+    } else {
+      value = "moodle-" + index.toString();
+    }
     return value;
   }
 

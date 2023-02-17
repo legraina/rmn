@@ -142,9 +142,15 @@ if __name__ == "__main__":
             )
 
             counter = 0
+            all_copies_folder_path = validated_copies_folder_path.joinpath("all")
+            all_copies_folder_path.mkdir(exist_ok=True)
+            print("All folder:", str(all_copies_folder_path))
             for i, id in enumerate(moodle_zip_id_list):
                 # moodle_i
                 moodle_folder_name = f"moodle_{i}"
+                moodle_folder_path = validated_copies_folder_path.joinpath(moodle_folder_name)
+                moodle_folder_path.mkdir(exist_ok=True)
+
                 # moodle_i.zip
                 moodle_filename = f"{moodle_folder_name}.zip"
                 # validated_tmp_folder/<job_id>_moodle_0.zip
@@ -171,7 +177,6 @@ if __name__ == "__main__":
                             continue
 
                         doc = collection.find_one({"job_id": job_id, "filename": str(f)})
-                        print("doc", doc)
 
                         if not doc:
                             continue
@@ -186,36 +191,36 @@ if __name__ == "__main__":
                                 job_id, doc_idx - 1, doc["subquestion_predictions"]
                             )
 
+                        nom_complet = df.at[str(doc["matricule"]), "Nom complet"]
+                        try:
+                            nom, prenom = nom_complet.split()
+                        except Exception as e:
+                            print(nom_complet)
+                            print(e)
+                            nom = nom_complet
+                            prenom = ""
+                        matricule = str(doc["matricule"])
+
                         if moodle_ind:
                             # create folder
-                            nom_complet = df.at[str(doc["matricule"]), "Nom complet"]
-                            nom, prenom = nom_complet.split()
                             identifiant = df.at[str(doc["matricule"]), "Identifiant"]
                             matricule = str(doc["matricule"])
                             folder_name = f"{nom_complet}_{identifiant}_{matricule}_assignsubmission_file_"
                             print("folder name", folder_name)
-                            folder = validated_copies_folder_path.joinpath(
-                                moodle_folder_name
-                            ).joinpath(folder_name)
-                            folder.mkdir(exist_ok=True)
-                            print("folder path", str(folder))
+                            m_folder = moodle_folder_path.joinpath(folder_name)
+                            m_folder.mkdir(exist_ok=True)
+                            print("folder path", str(m_folder))
 
-                            dest = folder.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
+                            m_dest = m_folder.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
                             print("destination", dest)
 
                             # transfert file to folder
+                            shutil.copy(str(file), str(m_dest))
+
+                            dest = all_copies_folder_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
                             os.rename(str(file), str(dest))
                         else:
-                            folder = validated_copies_folder_path.joinpath(
-                                moodle_folder_name
-                            )
-                            folder.mkdir(exist_ok=True)
-
-                            nom_complet = df.at[str(doc["matricule"]), "Nom complet"]
-                            nom, prenom = nom_complet.split()
-                            matricule = str(doc["matricule"])
-
-                            dest = folder.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
+                            dest = moodle_folder_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
                             os.rename(str(file), str(dest))
 
                         exec_time = time.time() - start_time
@@ -254,7 +259,7 @@ if __name__ == "__main__":
                 shutil.make_archive(
                     str(VALIDATE_FOLDER.joinpath(moodle_folder_name)),
                     "zip",
-                    str(validated_copies_folder_path.joinpath(moodle_folder_name))
+                    str(moodle_folder_path)
                 )
 
                 try:
@@ -262,6 +267,22 @@ if __name__ == "__main__":
                     storage.move_to(c_zip, id)
                 except Exception as e:
                     print(e)
+
+            if moodle_ind:
+                shutil.make_archive(
+                    str(VALIDATE_FOLDER.joinpath("all")),
+                    "zip",
+                    str(all_copies_folder_path)
+                )
+                zip_file_id = f"output_zip/{job_id}_all.zip"
+                try:
+                    c_zip = f"{str(VALIDATE_FOLDER.joinpath("all"))}.zip"
+                    storage.move_to(c_zip, zip_file_id)
+                except Exception as e:
+                    print(e)
+
+                moodle_zip_id_list = [zip_file_id] + moodle_zip_id_list
+
 
             df.to_csv(file_path, mode="w+")
 
@@ -275,8 +296,11 @@ if __name__ == "__main__":
 
                 #
                 collection_output.update_one(
-                    {"job_id": job_id}, {"$set": {"notes_csv_file_id": notes_csv_file_id}}
-                )
+                    {"job_id": job_id},
+                    {"$set": {
+                        "notes_csv_file_id": notes_csv_file_id,
+                        "moodle_zip_id_list": moodle_zip_id_list
+                    }})
 
                 #
                 collection_eval_jobs.update_one(

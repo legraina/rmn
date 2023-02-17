@@ -57,6 +57,7 @@ r = redis.Redis(host=redis_host, port=6379, db=0)
 
 storage = Storage()
 
+
 def verify_token(role = None):
     def _verify_token(f):
         @wraps(f)
@@ -78,6 +79,11 @@ def verify_token(role = None):
             return f()
         return __verify_token
     return _verify_token
+
+
+@app.route("/")
+def say_hello():
+    return "<h1>Hi Andy, I'm on fire !</h1>"
 
 
 @app.route("/login", methods=["POST"])
@@ -500,7 +506,7 @@ def download_file():
         os.makedirs(TEMP_FOLDER)
 
     # Save file to local
-    filepath = str(TEMP_FOLDER.joinpath(file_id.split("/")[1]))
+    filepath = str(TEMP_FOLDER.joinpath(file_id.split("/")[-1]))
     storage.copy_from(file_id, filepath)
     print("file created")
 
