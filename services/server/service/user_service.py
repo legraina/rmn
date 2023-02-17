@@ -46,7 +46,7 @@ class UserService:
            now = datetime.utcnow()
            delete_tokens = []
            for t in tokens:
-               delta = now - j["creation_time"]
+               delta = now - t["creation_time"]
                if delta.days >= n_days_old:
                    delete_tokens.append(t['token'])
            r["token"] = {"$in": delete_tokens}
@@ -140,8 +140,8 @@ class UserService:
             "username": username,
             "password": hashed_password,
             "role": role,
-            "saveVerifiedImages": False,
-            "moodleStructureInd": False,
+            "saveVerifiedImages": request_form.get("saveVerifiedImages", False),
+            "moodleStructureInd": request_form.get("moodleStructureInd", False),
         }
         collection.insert_one(user)
 
