@@ -87,34 +87,34 @@ They need to be run locally from the server (depending on nginx/ingress configur
 ##### Create a user
 Role can be either "Utilisateur" or "Administrateur":
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "password=test" --form "role=Administrateur" http://rmn.mgi.polymtl.ca/api/admin/signup
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "password=test" --form "role=Administrateur" http://localhost/api/admin/signup
 ```
 
 ##### Get all users
 ```
-curl -X POST http://rmn.mgi.polymtl.ca/api/admin/users
+curl -X POST http://localhost/api/admin/users
 ```
 
 ##### Change user password
 Change a user's password without knowing the old one:
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "new_password=test2" http://rmn.mgi.polymtl.ca/api/admin/change_password
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "new_password=test2" http://localhost/api/admin/change_password
 ```
 
 ##### Delete user
 Delete all data related to the given user as well as the user account itself:
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" http://rmn.mgi.polymtl.ca/api/admin/delete/user
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" http://localhost/api/admin/delete/user
 ```
 
 ##### Delete old tokens
 "username" or "user_id" and "n_days_old" are optional. All tokens that are more than "n_days_old" days old are deleted:
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "n_days_old=5" http://rmn.mgi.polymtl.ca/api/admin/delete/tokens
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "n_days_old=5" http://localhost/api/admin/delete/tokens
 ```
 
 ##### Delete old jobs
 "username" or "user_id" is optional. All jobs that are more than "n_days_old" days old are deleted:
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "n_days_old=5" http://rmn.mgi.polymtl.ca/api/admin/delete/jobs
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "n_days_old=5" http://localhost/api/admin/delete/jobs
 ```

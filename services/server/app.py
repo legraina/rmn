@@ -820,7 +820,7 @@ def delete_job(job_id):
     except Exception as e:
         print(e)
     try:
-        storage.remove(f"output_zip/{job_id}.zip")
+        storage.remove(f"output_zip/{job_id}*.zip")
     except Exception as e:
         print(e)
     try:
@@ -829,6 +829,10 @@ def delete_job(job_id):
         print(e)
     try:
         storage.remove_tree(f"documents/{job_id}")
+    except Exception as e:
+        print(e)
+    try:
+        storage.remove_tree(f"unverified_numbers/{job_id}")
     except Exception as e:
         print(e)
 

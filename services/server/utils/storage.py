@@ -1,5 +1,6 @@
 import os
 import shutil
+import glob
 from pathlib import Path
 
 
@@ -35,7 +36,9 @@ class Storage:
         shutil.copy(s_abs_file, l_file)
 
     def remove(self, s_file):
-        os.remove(self.abs_path(s_file))
+        abs_path = self.abs_path(s_file)
+        for f in glob.glob(str(abs_path)):
+            os.remove(f)
 
     def remove_tree(self, s_dir):
         shutil.rmtree(self.abs_path(s_dir))
