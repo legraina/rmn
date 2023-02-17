@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-consumer
+data:
+  RedisHost: bG9jYWxob3N0
+  RedisPort: NjM3OQ==
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledJob
+metadata:
+  name: job-executor
+  namespace: default
+spec:
+  jobTargetRef:
+    template:
+      spec:
+        volumes:
+          - name: nfs-storage
+            nfs:
+              server: 10.105.99.184  # ip of the nfs service
+              path: /
+              readOnly: no
+        containers:
+          - name: executor
+            image: rmni/executor:latest
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 5000
+                protocol: TCP
+            resources:
+              limits:
+                memory: 10G
+            volumeMounts:
+              - mountPath: /mnt/storage
+                name: nfs-storage
+            env:
+              - name: STORAGE
+                value: /mnt/storage
+            terminationMessagePolicy: FallbackToLogsOnError
+        restartPolicy: Never
+    backoffLimit: 0
+  pollingInterval: 1
+  maxReplicaCount: 5
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  scalingStrategy:
+    strategy: "default"
+  triggers:
+  - type: redis
+    metadata:
+      address: redis.default:6379
+      listName: job_queue
+      listLength: '1'

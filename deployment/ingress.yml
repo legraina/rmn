@@ -1,0 +1,43 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rmn-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/enable-rewrite-log: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/proxy-body-size: 5G
+spec:
+  rules:
+    - host: rmn.mgi.polymtl.ca
+      http:
+        paths:
+          # retrieve any file with an extansion
+          - path: /(.*\..*)
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp
+                port:
+                  number: 80
+          # route any path to the root of the application
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp
+                port:
+                  number: 80
+          - path: /api/(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: server
+                port:
+                  number: 5000
+          - path: /(socket.io/.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: socketio
+                port:
+                  number: 7000
