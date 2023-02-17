@@ -212,7 +212,7 @@ if __name__ == "__main__":
                             print("folder path", str(m_folder))
 
                             m_dest = m_folder.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
-                            print("destination", dest)
+                            print("destination", m_dest)
 
                             # transfert file to folder
                             shutil.copy(str(file), str(m_dest))
@@ -276,7 +276,8 @@ if __name__ == "__main__":
                 )
                 zip_file_id = f"output_zip/{job_id}_all.zip"
                 try:
-                    c_zip = f"{str(VALIDATE_FOLDER.joinpath("all"))}.zip"
+                    all_zip_name = str(VALIDATE_FOLDER.joinpath("all"))
+                    c_zip = f"{all_zip_name}.zip"
                     storage.move_to(c_zip, zip_file_id)
                 except Exception as e:
                     print(e)

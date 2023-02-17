@@ -1,6 +1,6 @@
 from service.template_service import TemplateService
 from utils.box_converter import convert_box_to_list
-from service.UserService import UserService
+from service.user_service import UserService, Role
 from pymongo import MongoClient
 from flask import Flask, request, Response, json, send_file, after_this_request
 from flask_cors import CORS, cross_origin
@@ -95,7 +95,7 @@ def login():
 
 @app.route("/signup", methods=["POST"])
 @cross_origin()
-@verify_token("Administrateur")
+@verify_token(Role.ADMIN)
 def signup():
     db = mongo_client["RMN"]
     return UserService.signup(request, db)

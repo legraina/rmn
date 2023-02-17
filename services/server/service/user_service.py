@@ -2,6 +2,15 @@ from flask import Flask, request, Response, json, send_file
 from werkzeug.security import generate_password_hash,check_password_hash
 from datetime import datetime
 import uuid
+from enum import Enum
+
+
+class Role(Enum):
+    USER = "Utilisateur"
+    ADMIN = "Administrateur"
+
+    def available(role):
+        return role == Role.USER or role == Role.ADMIN
 
 
 class UserService:
@@ -20,11 +29,12 @@ class UserService:
     def verify_token(token, database, role = None):
         collection = database["tokens"]
         tokenDB = collection.find_one({"token": token})
+        print("token:", tokenDB, "role:", role)
         if tokenDB is None:
             return False
         if role is None:
             return True
-        return tokenDB["role"] != role
+        return tokenDB["role"] == role
 
     def delete_tokens(request, db):
        request_form = request.form
@@ -109,6 +119,7 @@ class UserService:
                 response=json.dumps({"response": f"Error: password not provided."}),
                 status=400,
             )
+
         if "role" not in request_form:
             return Response(
                 response=json.dumps({"response": f"Error: password not provided."}),
@@ -119,9 +130,13 @@ class UserService:
         password = request_form['password']
         role = request_form['role']
 
-        #TODO check if admin
-        collection = database["users"]
+        if Role.available(role):
+            return Response(
+                response=json.dumps({"response": f"Error: {role} not available."}),
+                status=400,
+            )
 
+        collection = database["users"]
         isUserExisting = collection.count_documents({"username": username}) > 0
         if isUserExisting :
             return Response(

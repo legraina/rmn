@@ -2,6 +2,9 @@
 
 ### General information for installation
 
+##### Nginx
+You may have to deploy an nginx reverse proxy to point to the kubernetes server. You may adapt the nginx.conf file for this purpose.
+
 ##### Ingress
 nginx is only used as a reverse proxy to redirect all requests to kubernetes and to handle certificates.
 All the routing part is handle by ingress (i.e., nginx in kubernetes). Ingress needs to be enabled in minikube:
@@ -21,9 +24,10 @@ Do not use Keda 2.81, instead Keda 2.9.* as Kubernetes 1.20+ is only supported f
 kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.9.3/keda-2.9.3.yaml
 ```
 
-##### Create first admin user
+##### Deploy all services
+Move to the deployment folder and run this command to start all services:
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "password=test" --form "role=Administrateur" "http://rmn.mgi.polymtl.ca/api/signup"
+kubectl apply -f .
 ```
 
 ### Persistent volume: NFS server
@@ -66,4 +70,43 @@ kubectl rollout restart deployment <modified deployment>
 Or delete the corresponding pods for a Replication Controller:
 ```
 kubectl delete pods <modified deployment pod>
+```
+
+### Admin commands
+
+They need to be run locally from the server.
+
+##### Create a user
+Role can be either "Utilisateur" or "Administrateur":
+```
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "password=test" --form "role=Administrateur" http://rmn.mgi.polymtl.ca/api/admin/signup
+```
+
+##### Get all users
+```
+curl -X POST http://rmn.mgi.polymtl.ca/api/admin/users
+```
+
+##### Change user password
+Change a user's password without knowing the old one:
+```
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "new_password=test2" http://rmn.mgi.polymtl.ca/api/admin/change_password
+```
+
+##### Delete user
+Delete all data related to the given user as well as the user account itself:
+```
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" http://rmn.mgi.polymtl.ca/api/admin/delete/user
+```
+
+##### Delete old tokens
+"username" or "user_id" and "n_days_old" are optional. All tokens that are more than "n_days_old" days old are deleted:
+```
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "n_days_old=5" http://rmn.mgi.polymtl.ca/api/admin/delete/tokens
+```
+
+##### Delete old jobs
+"username" or "user_id" is optional. All jobs that are more than "n_days_old" days old are deleted:
+```
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "n_days_old=5" http://rmn.mgi.polymtl.ca/api/admin/delete/jobs
 ```
