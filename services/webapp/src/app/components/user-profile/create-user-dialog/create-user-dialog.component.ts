@@ -9,10 +9,10 @@ import { UserService } from 'src/app/services/user.service';
   styleUrls: ['./create-user-dialog.component.css']
 })
 export class CreateUserDialogComponent implements OnInit {
-  n_username: string = '';
-  n_pass: string = '';
-  n_passRepeat: string = '';
-  n_role: string = '';
+  username: string = '';
+  pass: string = '';
+  passRepeat: string = '';
+  selected: string = '';
   hideNewPass: boolean = true;
   hideNewPass2: boolean = true;
 
@@ -34,13 +34,13 @@ export class CreateUserDialogComponent implements OnInit {
   }
 
   attemptCreate() {
-    if (this.n_username.length == 0 || this.n_pass.length == 0 || this.n_passRepeat.length == 0) {
+    if (this.username.length == 0 || this.pass.length == 0 || this.passRepeat.length == 0) {
       this.notification.showWarning("Veuillez remplir le(s) champ(s) vide(s)!", "Champ Vide");
     }
-    else if (this.n_pass != this.n_passRepeat) {
+    else if (this.pass != this.passRepeat) {
       this.notification.showError("Votre mot de passe ne concordre pas à celui répété!", "Champs Non Égaux");
     }
-    else if (this.n_role == '') {
+    else if (this.selected == '') {
       this.notification.showWarning("Veuillez choisir le type de compte!", "Type de Compte");
     } else {
       this.createAccount()
@@ -48,7 +48,7 @@ export class CreateUserDialogComponent implements OnInit {
   }
 
   private createAccount() {
-    this.userService.signup(this.n_username, this.n_pass, this.n_role).subscribe((resp) => {
+    this.userService.signup(this.username, this.pass, this.selected).subscribe((resp) => {
       this.notification.showSuccess("", "Compte Créé")
       this.dialogRef.close('');
     }, (err) => {

@@ -130,9 +130,9 @@ class UserService:
         password = request_form['password']
         role = request_form['role']
 
-        if Role.available(role):
+        if not Role.available(role):
             return Response(
-                response=json.dumps({"response": f"Error: {role} not available."}),
+                response=json.dumps({"response": f"Error: role {role} n'existe pas."}),
                 status=400,
             )
 
