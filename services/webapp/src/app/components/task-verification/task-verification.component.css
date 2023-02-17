@@ -223,7 +223,7 @@ hr.header-line {
 
 .validation-container {
     background-color: white;
-    width: 50%;
+    width: 70%;
     height: 90%;
 
     display: flex;
@@ -249,7 +249,7 @@ hr.header-line {
 
 .picture-container {
     height: 90%;
-    width: 70%;
+    width: 60%;
     margin-right: 5%;
     border: 2px solid gray;
     display: flex;
@@ -264,7 +264,7 @@ hr.header-line {
 
 .validation-check-container {
     height: 90%;
-    width: 20%;
+    width: 30%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -422,7 +422,7 @@ input::-webkit-inner-spin-button {
     left: 52%;
     margin-right: -50%;
     transform: translate(-50%, -50%);
-    /* tkt ca work TRUST 
+    /* tkt ca work TRUST
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠛⠛⠛⠛⠿⣿⣿⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠛⠉⠁⠀⠀⠀⠀⠀⠀⠀⠉⠻⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢿⣿⣿⣿⣿
@@ -451,7 +451,7 @@ input::-webkit-inner-spin-button {
     width: 1%;
     transition: 3s;
     z-index: 2;
-    /* tkt ca work TRUST 
+    /* tkt ca work TRUST
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠛⠛⠛⠛⠿⣿⣿⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠛⠉⠁⠀⠀⠀⠀⠀⠀⠀⠉⠻⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢿⣿⣿⣿⣿
@@ -480,7 +480,7 @@ input::-webkit-inner-spin-button {
     width: 1%;
     transition: 3s;
     z-index: 2;
-    /* tkt ca work TRUST 
+    /* tkt ca work TRUST
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠛⠛⠛⠛⠿⣿⣿⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠛⠉⠁⠀⠀⠀⠀⠀⠀⠀⠉⠻⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢿⣿⣿⣿⣿
