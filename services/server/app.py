@@ -241,7 +241,7 @@ def evaluate():
 
             current_idx = 0
             writer = PdfWriter()
-            for p in len(reader.pages):
+            for p in reader.pages:
                 writer.add_page(p)
                 if len(writer.pages) == nb_pages:
                     with open(
