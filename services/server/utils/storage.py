@@ -23,7 +23,10 @@ class Storage:
         print("Access:", os.access(self.path, os.W_OK))
 
     def abs_path(self, r_path):
-        return str(self.path.joinpath(r_path))
+        abs_path = str(self.path.joinpath(r_path))
+        if not os.path.exists(abs_path):
+            raise ValueError("Storage can't find file "+abs_path)
+        return abs_path
 
     def move_to(self, l_file, s_file):
         s_abs_file = self.abs_path(s_file)

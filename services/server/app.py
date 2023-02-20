@@ -691,9 +691,6 @@ def download_document():
     document_file = document_collection.find_one(
         {"job_id": job_id, "document_index": document_index}
     )
-
-    #
-    file_id = document_file["image_id"]
     if document_file is None:
         return Response(
             response=json.dumps({"response": f"No document found!"}),
@@ -701,18 +698,17 @@ def download_document():
         )
 
     # Save file to local
+    file_id = str(document_file["image_id"])
     print("file_id", file_id)
-    storage.copy_from(file_id, str(file_id))
-    print("file created")
-
-    file_send = send_file(str(file_id))
+    storage.copy_from(file_id, file_id)
+    file_send = send_file(file_id)
 
     time.sleep(0.1)
 
     @after_this_request
     def add_close_action(response):
         try:
-            os.remove(str(file_id))
+            os.remove(file_id)
         except Exception as e:
             print(e)
         return response
