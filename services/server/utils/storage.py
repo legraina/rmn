@@ -23,18 +23,19 @@ class Storage:
         print("Access:", os.access(self.path, os.W_OK))
 
     def abs_path(self, r_path):
-        abs_path = str(self.path.joinpath(r_path))
-        if not os.path.exists(abs_path):
-            raise ValueError("Storage can't find file "+abs_path)
-        return abs_path
+        return str(self.path.joinpath(r_path))
 
     def move_to(self, l_file, s_file):
         s_abs_file = self.abs_path(s_file)
+        if not os.path.exists(l_file):
+            raise ValueError("Storage can't find local file "+l_file)
         create_tree(s_abs_file)
         shutil.move(l_file, s_abs_file)
 
     def copy_from(self, s_file, l_file):
         s_abs_file = self.abs_path(s_file)
+        if not os.path.exists(s_abs_file):
+            raise ValueError("Storage can't find file "+s_abs_file)
         create_tree(l_file)
         shutil.copy(s_abs_file, l_file)
 
