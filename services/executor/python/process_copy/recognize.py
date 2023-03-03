@@ -1051,13 +1051,32 @@ def extract_digit(cnt, gray, thresh, classifier, threshold=1e-2, border=7):
 def process_digits_combinations(all_digits, dot):
     # create all combinations
     combinations = [(0, [])]
+    # check if finding the question total (e.g., / 5) in the box if present.
+    # it should recognize / as number 1.
+    # We just cut all numbers at that point if any
+    trunc_combinations = []
+    j = 0
     for (c, d) in all_digits:
-        c2 = [
-            (cumul + p, digits + [(c, i)])
-            for (p, i) in d
-            for (cumul, digits) in combinations
-        ]
-        combinations = c2
+        for (p, i) in d:
+            # check if a 1 not in first position and after dot if any
+            if i == 1:
+                if (dot >= len(all_digits) and j > 0) or \  # if no dot
+                   (dot < len(all_digits) and j >= dot):  # if after the dot
+                   number_dgts_left = len(all_digits) - j - 1
+                   # we suppose a probality of 1 for the subsequent numbers
+                   p_left = p + number_dgts_left
+                   trunc_combinations += [
+                       (cumul + p, digits)
+                       for (cumul, digits) in combinations
+                   ]
+            # add every possible combinations
+            c2 = [
+                (cumul + p, digits + [(c, i)])
+                for (cumul, digits) in combinations
+            ]
+            combinations = c2
+        j += 1
+    combinations += trunc_combinations
     combinations = sorted(combinations, reverse=True)
     # process all combinations: normalize probability and extract number
     numbers = []
