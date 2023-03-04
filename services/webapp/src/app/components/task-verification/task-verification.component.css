@@ -444,7 +444,7 @@ input::-webkit-inner-spin-button {
 .back-button2 {
     position: absolute;
     top: 55%;
-    left: 28%;
+    left: 36.75%;
     margin-right: -50%;
     transform: translate(-50%, -50%);
     height: 73%;
@@ -473,7 +473,7 @@ input::-webkit-inner-spin-button {
 .back-button3 {
     position: absolute;
     top: 55%;
-    left: 65%;
+    left: 68.20%;
     margin-right: -50%;
     transform: translate(-50%, -50%);
     height: 73%;
