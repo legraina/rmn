@@ -44,6 +44,8 @@ spec:
           env:
             - name: SHARED_DIRECTORY
               value: /mnt/nfs_share
+            - name: SYNC
+              value: "true"
       restartPolicy: Always
       volumes:
         - name: nfs-vol

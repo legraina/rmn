@@ -1071,7 +1071,7 @@ def process_digits_combinations(all_digits, dot):
                 if 0 < j < len(all_digits) - 1 and (dot >= len(all_digits) or j > dot):
                     # give a bonus to the truncated number as generally more probable
                    trunc_combinations += [
-                       (cumul + p, digits)
+                       (cumul + j*p, digits)
                        for (cumul, digits) in combinations
                    ]
             # add every possible combinations
