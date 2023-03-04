@@ -35,7 +35,7 @@ from keras.models import load_model
 from pdf2image import convert_from_path
 from PIL import Image
 from datetime import datetime
-from process_copy.config import re_mat, len_mat
+from process_copy.config import re_mat, len_mat, known_mistmatch
 from process_copy.config import MoodleFields as MF
 from process_copy.mcc import get_name, load_csv
 from process_copy.preview import PreviewHandler
@@ -1045,6 +1045,13 @@ def extract_digit(cnt, gray, thresh, classifier, threshold=1e-2, border=7):
         cumul += p
         if cumul > 1 - threshold:
             break
+
+    # find known mismatch, and add it with probability 0
+    for k, v in known_mistmatch.items():
+        numbs = [i for p, i in d]
+        if k in numbs and v not in numbs:
+            d.append((0, v))
+
     return d
 
 
@@ -1060,15 +1067,9 @@ def process_digits_combinations(all_digits, dot):
         for (p, i) in d:
             # check if a 1 not in first position and after dot if any
             if i == 1:
-                if (dot >= len(all_digits) and j > 0) or \  # if no dot
-                   (dot < len(all_digits) and j >= dot):  # if after the dot
-                   number_dgts_left = len(all_digits) - j - 1
-                   # we suppose a probality of 1 for the subsequent numbers
-                   p_left = p + number_dgts_left
-                   trunc_combinations += [
-                       (cumul + p, digits)
-                       for (cumul, digits) in combinations
-                   ]
+                # check if neither first and last digit and not first digit after the dot if any
+                if 0 < j < len(all_digits) - 1 and (dot >= len(all_digits) or j > dot):
+                   trunc_combinations += combinations
             # add every possible combinations
             c2 = [
                 (cumul + p, digits + [(c, i)])
@@ -1087,7 +1088,7 @@ def process_digits_combinations(all_digits, dot):
     return numbers
 
 
-def extract_number(digits, dot, just_allowed_decimals=False):
+def extract_number(digits, dot, just_allowed_decimals=True):
     # create number
     number = ""
     decimals = ""
