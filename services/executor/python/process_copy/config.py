@@ -22,6 +22,7 @@ matricule_box = {
     }
 }
 
+known_mistmatch = {}
 
 class Latex:
     cmd = "pdflatex"

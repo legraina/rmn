@@ -10,7 +10,7 @@ from utils.utils import Job_Status, Output_File, Document_Status
 from utils.storage import Storage
 from datetime import datetime, timezone
 from io import FileIO
-from PyPDF2 import PdfFileWriter, PdfFileReader
+from PyPDF2 import PdfWriter, PdfReader
 from service.front_page_service import FrontPageHandler
 from threading import Thread
 
@@ -233,27 +233,25 @@ def evaluate():
         is_pdf_file = str(zip_file_name).endswith(".pdf")
         # transform into zip file
         if is_pdf_file:
-            input_pdf = PdfFileReader(zip_file)
-
+            reader = PdfReader(zip_file)
             folder_to_zip = TEMP_FOLDER.joinpath("folder_to_zip")
 
             if not os.path.exists(folder_to_zip):
                 os.makedirs(folder_to_zip)
 
             current_idx = 0
-            output = PdfFileWriter()
-            for i in range(input_pdf.numPages):
-                output.addPage(input_pdf.getPage(i))
-
-                current_idx += 1
-
-                if current_idx == nb_pages:
-                    current_idx = 0
+            writer = PdfWriter()
+            for p in reader.pages:
+                writer.add_page(p)
+                if len(writer.pages) == nb_pages:
                     with open(
-                        str(folder_to_zip.joinpath(f"{str(i)}.pdf")), "wb"
+                        str(folder_to_zip.joinpath(f"{str(current_idx)}.pdf")), "wb"
                     ) as out:
-                        output.write(out)
-                    output = PdfFileWriter()
+                        writer.write(out)
+                    writer = PdfWriter()
+                    current_idx += 1
+            if len(writer.pages) > 0:
+                print("WARNING: there are some pages that will be lost:", len(writer.pages))
 
             zip_file_name = "copies.zip"
             shutil.make_archive(
@@ -693,9 +691,6 @@ def download_document():
     document_file = document_collection.find_one(
         {"job_id": job_id, "document_index": document_index}
     )
-
-    #
-    file_id = document_file["image_id"]
     if document_file is None:
         return Response(
             response=json.dumps({"response": f"No document found!"}),
@@ -703,18 +698,17 @@ def download_document():
         )
 
     # Save file to local
+    file_id = str(document_file["image_id"])
     print("file_id", file_id)
-    storage.copy_from(file_id, str(file_id))
-    print("file created")
-
-    file_send = send_file(str(file_id))
+    storage.copy_from(file_id, file_id)
+    file_send = send_file(file_id)
 
     time.sleep(0.1)
 
     @after_this_request
     def add_close_action(response):
         try:
-            os.remove(str(file_id))
+            os.remove(file_id)
         except Exception as e:
             print(e)
         return response

@@ -35,7 +35,7 @@ from keras.models import load_model
 from pdf2image import convert_from_path
 from PIL import Image
 from datetime import datetime
-from process_copy.config import re_mat, len_mat
+from process_copy.config import re_mat, len_mat, known_mistmatch
 from process_copy.config import MoodleFields as MF
 from process_copy.mcc import get_name, load_csv
 from process_copy.preview import PreviewHandler
@@ -1045,27 +1045,53 @@ def extract_digit(cnt, gray, thresh, classifier, threshold=1e-2, border=7):
         cumul += p
         if cumul > 1 - threshold:
             break
+
+    # find known mismatch, and add it with probability 0
+    for k, v in known_mistmatch.items():
+        numbs = [i for p, i in d]
+        if k in numbs and v not in numbs:
+            d.append((0, v))
+
     return d
 
 
 def process_digits_combinations(all_digits, dot):
     # create all combinations
     combinations = [(0, [])]
+    # check if finding the question total (e.g., / 5) in the box if present.
+    # it should recognize / as number 1.
+    # We just cut all numbers at that point if any
+    trunc_combinations = []
+    j = 0
     for (c, d) in all_digits:
-        c2 = [
-            (cumul + p, digits + [(c, i)])
-            for (p, i) in d
-            for (cumul, digits) in combinations
-        ]
-        combinations = c2
-    combinations = sorted(combinations, reverse=True)
+        for (p, i) in d:
+            # check if a 1 not in first position and after dot if any
+            if i == 1:
+                # check if neither first and last digit and not first digit after the dot if any
+                if 0 < j < len(all_digits) - 1 and (dot >= len(all_digits) or j > dot):
+                    # give a bonus to the truncated number as generally more probable
+                   trunc_combinations += [
+                       (cumul + j*p, digits)
+                       for (cumul, digits) in combinations
+                   ]
+            # add every possible combinations
+            c2 = [
+                (cumul + p, digits + [(c, i)])
+                for (cumul, digits) in combinations
+            ]
+            combinations = c2
+        j += 1
+    combinations += trunc_combinations
+
     # process all combinations: normalize probability and extract number
     numbers = []
+    just_allowed_decimals = len(trunc_combinations) == 0
     for p, digits in combinations:
-        number = extract_number(digits, dot)
+        number = extract_number(digits, dot, just_allowed_decimals)
         if number is not None:
             numbers.append((p / len(digits), number))
-    return numbers
+
+    return sorted(numbers, reverse=True)
 
 
 def extract_number(digits, dot, just_allowed_decimals=False):
