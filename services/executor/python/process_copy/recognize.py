@@ -1082,7 +1082,7 @@ def process_digits_combinations(all_digits, dot):
             combinations = c2
         j += 1
     combinations += trunc_combinations
-    combinations = sorted(combinations, reverse=True)
+
     # process all combinations: normalize probability and extract number
     numbers = []
     just_allowed_decimals = len(trunc_combinations) == 0
@@ -1090,7 +1090,8 @@ def process_digits_combinations(all_digits, dot):
         number = extract_number(digits, dot, just_allowed_decimals)
         if number is not None:
             numbers.append((p / len(digits), number))
-    return numbers
+
+    return sorted(numbers, reverse=True)
 
 
 def extract_number(digits, dot, just_allowed_decimals=False):
