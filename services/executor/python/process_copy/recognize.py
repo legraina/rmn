@@ -1069,7 +1069,11 @@ def process_digits_combinations(all_digits, dot):
             if i == 1:
                 # check if neither first and last digit and not first digit after the dot if any
                 if 0 < j < len(all_digits) - 1 and (dot >= len(all_digits) or j > dot):
-                   trunc_combinations += combinations
+                    # give a bonus to the truncated number as generally more probable
+                   trunc_combinations += [
+                       (cumul + p, digits)
+                       for (cumul, digits) in combinations
+                   ]
             # add every possible combinations
             c2 = [
                 (cumul + p, digits + [(c, i)])
@@ -1081,14 +1085,15 @@ def process_digits_combinations(all_digits, dot):
     combinations = sorted(combinations, reverse=True)
     # process all combinations: normalize probability and extract number
     numbers = []
+    just_allowed_decimals = len(trunc_combinations) == 0
     for p, digits in combinations:
-        number = extract_number(digits, dot)
+        number = extract_number(digits, dot, just_allowed_decimals)
         if number is not None:
             numbers.append((p / len(digits), number))
     return numbers
 
 
-def extract_number(digits, dot, just_allowed_decimals=True):
+def extract_number(digits, dot, just_allowed_decimals=False):
     # create number
     number = ""
     decimals = ""
