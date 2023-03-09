@@ -1021,6 +1021,7 @@ def extract_digit(cnt, gray, thresh, classifier, threshold=1e-2, border=7):
     # creating a mask
     mask = np.zeros(gray.shape, dtype="uint8")
     (x, y, w, h) = cv2.boundingRect(cnt)
+    print("bounding box: [", x, ",", x+w, "] x [", y, ",", y+h, "]")
 
     hull = cv2.convexHull(cnt)
     cv2.drawContours(mask, [hull], -1, 255, -1)
