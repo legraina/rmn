@@ -31,17 +31,20 @@ socketio_host = (
 
 
 def save_number_images(job_id, document_index, questions):
-    numbers = [n for n in questions.values()]
+    try:
+        numbers = [n for n in questions.values()]
 
-    for index, number in enumerate(numbers):
-        number = float(number)
-        if number.is_integer() and 0 <= int(number) <= 9:
-            try:
-                unverified_filename = f"unverified_numbers/{job_id}/{document_index}/{index}.png"
-                new_filename = f"numbers/{int(number)}/{uuid.uuid4()}.png"
-                storage.move_to(storage.abs_path(unverified_filename), new_filename)
-            except Exception as e:
-                print(e)
+        for index, number in enumerate(numbers):
+            number = float(number)
+            if number.is_integer() and 0 <= int(number) <= 9:
+                try:
+                    unverified_filename = f"unverified_numbers/{job_id}/{document_index}/{index}.png"
+                    new_filename = f"numbers/{int(number)}/{uuid.uuid4()}.png"
+                    storage.move_to(storage.abs_path(unverified_filename), new_filename)
+                except Exception as e:
+                    print(e)
+    except Exception as e:
+        print(e)
 
 
 if __name__ == "__main__":

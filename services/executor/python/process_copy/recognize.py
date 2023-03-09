@@ -791,7 +791,7 @@ def find_matricule(
     return None, id_box, None
 
 
-def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None):
+def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None, retry=5):
     cropped = fetch_box(gray, box)
     print(f"box: {box}")
     print(f"cropped: {cropped}")
@@ -804,6 +804,10 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
         (x, y, w, h) = cv2.boundingRect(b)
         if h <= 10 or w <= 10:
             print("An invalid box number has been found (too small or too thin)")
+            if retry > 0:
+                print("Retry grading")
+                box2 = (box[0]-.01, box[0]+.01, box[0]-.01, box[0]+.01)
+                return grade(gray, box2, classifier, add_border, trim, max_grade, retry-1):
             return False, [], cropped, number_images
         box_img = cropped[y + 5 : y + h - 5, x + 5 : x + w - 5]
         # check if need to trim
@@ -1109,6 +1113,8 @@ def extract_number(digits, dot, just_allowed_decimals=False):
         # try to correct decimals
         l = len(decimals)
         if l <= len(corrected_decimals):
+            print("Corrected decimals", decimals, "->", corrected_decimals[l - 1])
+            print("Digits", [d[1] for d in digits])
             decimals = corrected_decimals[l - 1]
         else:
             print(
