@@ -36,9 +36,12 @@ def save_number_images(job_id, document_index, questions):
     for index, number in enumerate(numbers):
         number = float(number)
         if number.is_integer() and 0 <= int(number) <= 9:
-            unverified_filename = f"unverified_numbers/{job_id}/{document_index}/{index}.png"
-            new_filename = f"numbers/{int(number)}/{uuid.uuid4()}.png"
-            storage.move_to(storage.abs_path(unverified_filename), new_filename)
+            try:
+                unverified_filename = f"unverified_numbers/{job_id}/{document_index}/{index}.png"
+                new_filename = f"numbers/{int(number)}/{uuid.uuid4()}.png"
+                storage.move_to(storage.abs_path(unverified_filename), new_filename)
+            except Exception as e:
+                print(e)
 
 
 if __name__ == "__main__":
@@ -198,7 +201,14 @@ if __name__ == "__main__":
                                 job_id, doc_idx - 1, doc["subquestion_predictions"]
                             )
 
-                        nom_complet = df.at[str(doc["matricule"]), "Nom complet"]
+                        matricule = str(doc["matricule"])
+                        try:
+                            nom_complet = df.at[matricule, "Nom complet"]
+                        except Exception as e:
+                            print(e)
+                            print("Matricule", matricule, "not found in csv.")
+                            continue
+
                         try:
                             nom, prenom = nom_complet.split()
                         except Exception as e:
@@ -206,7 +216,6 @@ if __name__ == "__main__":
                             print(e)
                             nom = nom_complet
                             prenom = ""
-                        matricule = str(doc["matricule"])
 
                         if moodle_ind:
                             # create folder
