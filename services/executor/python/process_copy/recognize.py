@@ -807,7 +807,7 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
             if retry > 0:
                 print("Retry grading")
                 box2 = (box[0]-.01, box[0]+.01, box[0]-.01, box[0]+.01)
-                return grade(gray, box2, classifier, add_border, trim, max_grade, retry-1):
+                return grade(gray, box2, classifier, add_border, trim, max_grade, retry-1)
             return False, [], cropped, number_images
         box_img = cropped[y + 5 : y + h - 5, x + 5 : x + w - 5]
         # check if need to trim
@@ -906,7 +906,9 @@ def test(gray_img, classifier=None, trim=None):
 
     if not all_digits:
         print("No valid number has been found")
-        return []
+        return [(1.0, 0)]
+
+    print("All digits found:", extract_all_digits)
 
     # process all possible digits combinations
     return process_digits_combinations(all_digits, dot)
@@ -1095,6 +1097,9 @@ def process_digits_combinations(all_digits, dot):
         number = extract_number(digits, dot, just_allowed_decimals)
         if number is not None:
             numbers.append((p / len(digits), number))
+
+    if not numbers:
+        return [(1.0, 0)]
 
     return sorted(numbers, reverse=True)
 
