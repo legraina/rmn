@@ -427,7 +427,7 @@ def grade_all(
                         print(Fore.RED + "%s: No valid pdf" % f + Style.RESET_ALL)
                         continue
                     gray = grays[0]
-                    total_matched, numbers, grades, number_images = grade(
+                    total_matched, numbers, grades, number_images, boxes = grade(
                         gray,
                         box["grade"],
                         classifier=classifier,
@@ -512,7 +512,7 @@ def grade_all(
                         ]
                     )
                     results.append((f"Totale: {numbers[-1]}", total_matched))
-                    src = handler.createDocumentPreview(file, DIRPATH, results, box=box)
+                    src = handler.createDocumentPreview(file, DIRPATH, results, boxes=boxes)
                     print(f"src: {src}")
                     # DB update
 
@@ -809,7 +809,7 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
                 print("Retry grading", retry)
                 box2 = (box[0]-.01, box[0]+.01, box[0]-.01, box[0]+.01)
                 return grade(gray, box2, classifier, add_border, trim, max_grade, retry-1)
-            return False, [], cropped, number_images
+            return False, [], cropped, number_images, boxes
         box_img = cropped[y + 5 : y + h - 5, x + 5 : x + w - 5]
         # check if need to trim
         n_trim = None
@@ -828,7 +828,7 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
 
     if len(all_numbers) == 0:
         print("No valid number has been found")
-        return False, [], cropped, number_images
+        return False, [], cropped, number_images, boxes
 
     # find all combination that works
     combinations = [(0, [])]
@@ -849,14 +849,14 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
     for p, numbers in combinations:
         # if only one number, return it
         if len(numbers) <= 1:
-            return True, numbers, cropped, number_images
+            return True, numbers, cropped, number_images, boxes
         # check the sum
         total = sum(numbers[:-1])
         if max_grade is not None and numbers[-1] > max_grade:
             continue
         if total != numbers[-1]:
             continue
-        return True, numbers, cropped, number_images
+        return True, numbers, cropped, number_images, boxes
 
     # Has not been able to check the total -> give the best prediction
     expected_numbers = [n[0] for n in all_numbers[:-1]]
@@ -883,6 +883,7 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
         [n for p, n in expected_numbers] + [adjusted_total],
         cropped,
         number_images,
+        boxes
     )
 
 
