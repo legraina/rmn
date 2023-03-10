@@ -512,7 +512,7 @@ def grade_all(
                         ]
                     )
                     results.append((f"Totale: {numbers[-1]}", total_matched))
-                    src = handler.createDocumentPreview(file, DIRPATH, results, boxes=boxes)
+                    src = handler.createDocumentPreview(file, DIRPATH, results, box=box["grade"], boxes=boxes)
                     print(f"src: {src}")
                     # DB update
 
@@ -792,7 +792,7 @@ def find_matricule(
     return None, id_box, None
 
 
-def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None, retry=5):
+def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None, retry=0):
     cropped = fetch_box(gray, box)
     print(f"box: {box}")
     print(f"cropped: {cropped}")

@@ -12,9 +12,9 @@ TEMP_FOLDER = Path(__file__).resolve().parent.joinpath('temp')
 class PreviewHandler:
     RED = (0, 6, 225)
     GREEN = (0, 154, 23)
-    BLUE = (30,144,255)
+    ORANGE = (30,144,255)
 
-    def createDocumentPreview(self, pdf_file_path, output_f, results, boxes=[]):
+    def createDocumentPreview(self, pdf_file_path, output_f, results, box=box, boxes=[]):
 
         if not os.path.exists(TEMP_FOLDER):
             os.makedirs(TEMP_FOLDER)
@@ -57,9 +57,12 @@ class PreviewHandler:
                 5,
             )
 
-        for c in boxes:
-            (x, y, w, h) = cv2.boundingRect(c)
-            cv2.rectangle(img, (x, y), (x + w, y + h), self.BLUE, 2)
+        if box:
+            x0 = int(box[0] * img.shape[1])
+            y0 = int(box[2] * img.shape[0])
+            for c in boxes:
+                (x, y, w, h) = cv2.boundingRect(c)
+                cv2.rectangle(img, (x0 + x, y0 + y), (x0 + x + w, y0 + y + h), self.ORANGE, 5)
 
         cv2.imwrite(str(output_f.joinpath(f"{filename}.png")), img)
         print(f'filname : {filename}')
