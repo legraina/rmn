@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 import os
 import shutil
-from process_copy.recognize import fetch_box, find_grade_boxes
+
 
 TEMP_FOLDER = Path(__file__).resolve().parent.joinpath('temp')
 
@@ -14,7 +14,7 @@ class PreviewHandler:
     GREEN = (0, 154, 23)
     BLUE = (30,144,255)
 
-    def createDocumentPreview(self, pdf_file_path, output_f, results):
+    def createDocumentPreview(self, pdf_file_path, output_f, results, box=None):
 
         if not os.path.exists(TEMP_FOLDER):
             os.makedirs(TEMP_FOLDER)
@@ -57,11 +57,13 @@ class PreviewHandler:
                 5,
             )
 
-        cropped = fetch_box(img, box)
-        boxes = find_grade_boxes(cropped, thick=0)
-        for c in boxes:
-            (x, y, w, h) = cv2.boundingRect(c)
-            cv2.rectangle(img, (x, y), (x + w, y + h), self.BLUE, 2)
+        if box:
+            from process_copy.recognize import fetch_box, find_grade_boxes
+            cropped = fetch_box(img, box)
+            boxes = find_grade_boxes(cropped, thick=0)
+            for c in boxes:
+                (x, y, w, h) = cv2.boundingRect(c)
+                cv2.rectangle(img, (x, y), (x + w, y + h), self.BLUE, 2)
 
         cv2.imwrite(str(output_f.joinpath(f"{filename}.png")), img)
         print(f'filname : {filename}')
