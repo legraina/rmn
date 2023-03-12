@@ -14,7 +14,7 @@ class PreviewHandler:
     GREEN = (0, 154, 23)
     ORANGE = (30,144,255)
 
-    def createDocumentPreview(self, pdf_file_path, output_f, results, box=box, boxes=[]):
+    def createDocumentPreview(self, pdf_file_path, output_f, results, dpi=300, box=None, boxes=[]):
 
         if not os.path.exists(TEMP_FOLDER):
             os.makedirs(TEMP_FOLDER)
@@ -23,6 +23,7 @@ class PreviewHandler:
         print(filename)
         convert_from_path(
             pdf_file_path,
+            dpi=dpi,
             single_file=True,
             output_file=filename,
             fmt="png",
