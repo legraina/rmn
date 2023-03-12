@@ -410,6 +410,7 @@ def grade_all(
                         grades_dfs,
                         separate_box=box_matricule["separate_box"],
                     )
+                    grays.clear()
 
                     m = m if m else "NA"
                     if m not in matricules_data:
@@ -429,6 +430,7 @@ def grade_all(
                     print(Fore.RED + "%s: No valid pdf" % f + Style.RESET_ALL)
                     continue
                 gray = grays[0]
+                grays.clear()
                 total_matched, numbers, grades, number_images, boxes = grade(
                     gray,
                     box["grade"],
@@ -436,6 +438,8 @@ def grade_all(
                     trim=trim,
                     max_grade=max_grade,
                 )
+                del grades  # delete grades picture
+                del gray
 
                 # if len(numbers) <= 1:
                 #     continue
@@ -455,6 +459,7 @@ def grade_all(
                     db.save_unverified_number_images(
                         job_id, file_index, number_images[:-1]
                     )
+                    number_images.clear()  # delete numbers picture
 
                     # fill csv for all the subquestion
                     for index_grade, grade_number in enumerate(numbers[:-1]):
@@ -463,7 +468,7 @@ def grade_all(
                         if col_name not in grades_dfs[i].columns:
                             # create new column: Question_{index_grade + 1}
                             # Initialize to 0
-                            if not MF.grade in grades_dfs[i].columns:
+                            if MF.grade not in grades_dfs[i].columns:
                                 grades_dfs[i][MF.grade] = None
                             total_index = grades_dfs[i].columns.get_loc(MF.grade)
                             grades_dfs[i].insert(total_index, col_name, 0)
@@ -503,7 +508,7 @@ def grade_all(
                     )
                 ]
 
-                # Check there was any grades existing
+                # Check there were no grades existing
                 if not numbers or len(numbers) < 1:
                     numbers = [0] * max_nb_question
 
@@ -513,7 +518,7 @@ def grade_all(
                         for i, n in enumerate(numbers[:-1])
                     ]
                 )
-                results.append((f"Totale: {numbers[-1]}", total_matched))
+                results.append((f"Total: {numbers[-1]}", total_matched))
                 src = handler.createDocumentPreview(file, DIRPATH, results, dpi=dpi, box=box["grade"], boxes=boxes)
                 print(f"src: {src}")
                 # DB update
@@ -562,21 +567,14 @@ def grade_all(
 
                 counter2 += 1
 
-                # Getting % usage of virtual_memory ( 3rd field)
-                print('RAM memory % used:', psutil.virtual_memory()[2])
                 # Getting usage of virtual_memory in GB ( 4th field)
                 print('RAM Used (GB):', psutil.virtual_memory()[3]/1000000000)
 
                 # force garbage collector to clean
                 if counter2 % 10 == 0:
                     gc.collect()
-
-
-                    # Getting % usage of virtual_memory ( 3rd field)
-                    print('RAM memory % used:', psutil.virtual_memory()[2])
                     # Getting usage of virtual_memory in GB ( 4th field)
-                    print('RAM Used (GB):', psutil.virtual_memory()[3]/1000000000)
-
+                    print('RAM Used after collection (GB):', psutil.virtual_memory()[3]/1000000000)
 
     sio.disconnect()
     # raise error if cannot detect any grades in any copies
@@ -895,7 +893,7 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
             adjusted_total = total
         if total > max_grade and nt > 0:
             adjusted_total = nt
-        # if both are greater then max grade, both are false !
+        # if both are greater than max grade, both are false !
     return (
         False,
         [n for p, n in expected_numbers] + [adjusted_total],
