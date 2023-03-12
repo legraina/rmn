@@ -48,10 +48,7 @@ import socketio
 import json
 import time
 import psutil
-<<<<<<< Updated upstream
 import gc
-=======
->>>>>>> Stashed changes
 
 
 DIRPATH = Path(__file__).resolve().parent.joinpath("documents")

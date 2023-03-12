@@ -1,6 +1,5 @@
 from pdf2image import convert_from_path
 import cv2
-import tempfile
 from pathlib import Path
 from PIL import Image
 import os
@@ -9,17 +8,13 @@ import shutil
 
 TEMP_FOLDER = Path(__file__).resolve().parent.joinpath('temp')
 
+
 class PreviewHandler:
     RED = (0, 6, 225)
     GREEN = (0, 154, 23)
     ORANGE = (30,144,255)
 
-<<<<<<< Updated upstream
     def createDocumentPreview(self, pdf_file_path, output_f, results, dpi=300, box=None, boxes=[]):
-=======
-    def createDocumentPreview(self, pdf_file_path, output_f, results, box=None, boxes=[]):
->>>>>>> Stashed changes
-
         if not os.path.exists(TEMP_FOLDER):
             os.makedirs(TEMP_FOLDER)
 
@@ -27,11 +22,7 @@ class PreviewHandler:
         print(filename)
         convert_from_path(
             pdf_file_path,
-<<<<<<< Updated upstream
             dpi=dpi,
-=======
-            dpi=300,
->>>>>>> Stashed changes
             single_file=True,
             output_file=filename,
             fmt="png",
