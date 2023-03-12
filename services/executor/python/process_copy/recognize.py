@@ -48,7 +48,10 @@ import socketio
 import json
 import time
 import psutil
+<<<<<<< Updated upstream
 import gc
+=======
+>>>>>>> Stashed changes
 
 
 DIRPATH = Path(__file__).resolve().parent.joinpath("documents")
@@ -570,6 +573,12 @@ def grade_all(
                 # force garbage collector to clean
                 if counter2 % 10 == 0:
                     gc.collect()
+
+
+                    # Getting % usage of virtual_memory ( 3rd field)
+                    print('RAM memory % used:', psutil.virtual_memory()[2])
+                    # Getting usage of virtual_memory in GB ( 4th field)
+                    print('RAM Used (GB):', psutil.virtual_memory()[3]/1000000000)
 
 
     sio.disconnect()
