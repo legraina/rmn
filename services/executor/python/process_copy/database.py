@@ -55,6 +55,12 @@ class Database:
             }
         )
 
+    def status_document(self, collection_name, job_id, doc_index):
+        doc = self.mongo_database[collection_name].find_one({"job_id": job_id, "document_index": doc_index})
+        if doc:
+            return doc['status']
+        return Document_Status.NOT_READY
+
     def update_document(
         self,
         collection_name,
@@ -85,7 +91,7 @@ class Database:
 
     def update_job_status(self, collection_name, job_id, status):
         return self.mongo_database[collection_name].update_one(
-            {"job_id": job_id},
+            {"job_id": job_id, "job_status": Job_Status.QUEUED},
             {"$set": {"job_status": status.value}},
         )
 

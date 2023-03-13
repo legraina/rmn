@@ -438,6 +438,19 @@ if __name__ == "__main__":
                     storage.remove(f"zips/{job_id}.zip")
                     return
 
+                # check if should retry
+                retry = job_params.get("retry", 0)
+                if retry < os.getenv("MAX_RETRY", 5):
+                    collection_eval_jobs.update_one(
+                        {"job_id": job_id},
+                        {
+                            "$set": {
+                                "retry": 1,
+                            }
+                        },
+                    )
+                    raise e
+
                 # Error handling
                 collection_eval_jobs.update_one(
                     {"job_id": job_id},

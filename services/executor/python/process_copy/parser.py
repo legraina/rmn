@@ -192,7 +192,7 @@ def run_args(args):
             if args.compare:
                 compare_all(args.path, args.grades, config.grade_box[args.grade])
             else:
-                grade_all2(args.path, args.grades, config.grade_box[args.grade], config.matricule_box["exam"], args.job_id, args.user_id, args.template_id, id_box=config.matricule_box.get(args.grade), is_pdf_file= args.is_pdf_file)
+                grade_all2(args.path, args.grades, config.grade_box[args.grade], config.matricule_box["exam"], args.job_id, args.user_id, args.template_id, id_box=config.matricule_box.get(args.grade), is_pdf_file=args.is_pdf_file)
         except KeyError:
             raise KeyError("Grade configuration %s hasn't any configuration defined in config.py" % args.grade)
 
