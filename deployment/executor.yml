@@ -43,11 +43,11 @@ spec:
                 value: 5
             terminationMessagePolicy: FallbackToLogsOnError
         restartPolicy: Never
-    backoffLimit: 0
+    backoffLimit: 5
+    activeDeadlineSeconds: 14000  #  Specifies the duration in seconds relative to the startTime that the job may be active before the system tries to terminate it; value must be positive integer
   pollingInterval: 1
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 5
-  activeDeadlineSeconds: 14000  #  Specifies the duration in seconds relative to the startTime that the job may be active before the system tries to terminate it; value must be positive integer
   scalingStrategy:
     strategy: "default"
   triggers:
