@@ -440,7 +440,7 @@ if __name__ == "__main__":
 
                 # check if should retry
                 retry = job_params.get("retry", 0)
-                if retry < os.getenv("MAX_RETRY", 5):
+                if retry < int(os.getenv("MAX_RETRY", "5")):
                     collection_eval_jobs.update_one(
                         {"job_id": job_id},
                         {

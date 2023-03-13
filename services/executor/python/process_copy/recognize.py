@@ -239,7 +239,7 @@ def grade_all2(
         sio.connect(f"http://{socketio_host}:7000")
 
         # get max RAM
-        max_RAM_GB = os.getenv("MAX_RAM_GB")
+        max_RAM_GB = int(os.getenv("MAX_RAM_GB", "1000"))
 
         grade_all(
             paths,
@@ -275,7 +275,7 @@ def grade_all(
     id_box=None,
     dpi=300,
     shape=(8.5, 11),
-    max_RAM_GB=None
+    max_RAM_GB=1000
 ):
     db = Database("RMN")
     box_list, box_matricule_list = db.get_template_info(template_id)
@@ -452,7 +452,7 @@ def grade_files(
         box,
         dpi=300,
         shape=(8.5, 11),
-        max_RAM_GB=None
+        max_RAM_GB=1000
 ):
         # load csv
         grades_dfs, grades_names = load_csv(grades_csv)
@@ -661,7 +661,7 @@ def grade_files(
             RAM_used = psutil.virtual_memory()[3] / 1000000000
             print('RAM Used once grade found (GB):', RAM_used)
 
-            if max_RAM_GB is not None and RAM_used >= max_RAM_GB:
+            if RAM_used >= max_RAM_GB:
                 print('RAM limit exceeded')
                 break
 

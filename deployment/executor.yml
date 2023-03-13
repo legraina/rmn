@@ -38,9 +38,9 @@ spec:
               - name: STORAGE
                 value: /mnt/storage
               - name: MAX_RETRY
-                value: 5
+                value: "5"
               - name: MAX_RAM_GB
-                value: 5
+                value: "5"
             terminationMessagePolicy: FallbackToLogsOnError
         restartPolicy: Never
     backoffLimit: 5
