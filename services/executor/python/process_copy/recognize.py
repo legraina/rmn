@@ -298,10 +298,9 @@ def grade_all(
                 max_grade = s
 
     # Create a list of matricule-name
-    # TODO: only 1 csv supported
-    names_df = grades_dfs[0][["Nom complet"]]
-    names_df["matricule"] = names_df.index.copy()
-    names_mat_json = names_df.to_json(orient="records")
+    names_mat_df = pd.concat(grades_dfs).reset_index()[["Matricule", "Nom complet"]]
+    names_mat_df = names_mat_df.rename(columns={"Matricule": "matricule"})
+    names_mat_json = names_mat_df.to_json(orient="records")
 
     # Update job status
     new_job = db.update_job_status_to_run(job_id)

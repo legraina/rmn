@@ -76,21 +76,24 @@ if __name__ == "__main__":
             job_type = "execution"
             idle_delta_in_sec = 60
             max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)
-            job_object = collection_eval_jobs.find_one({
+            job_objects = collection_eval_jobs.find({
                 "job_status": Job_Status.RUN.value,
                 "alive_time": {"$lt": max_alive},
                 "retry": {"$lt", MAX_RETRY + 1}
             })
             # if no eval_job, wait to ensure that a job is idle
-            if not job_object:
+            if not job_objects:
                 print("Wait", idle_delta_in_sec, "seconds for idle jobs.")
                 time.sleep(idle_delta_in_sec)
                 max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)
-                job_object = collection_eval_jobs.find_one({
+                job_objects = collection_eval_jobs.find({
                     "job_status": Job_Status.RUN.value,
                     "alive_time": {"$lt": max_alive},
                     "retry": {"$lt", MAX_RETRY + 1}
                 })
+
+            if job_objects:
+                job_object = job_objects[0]
 
         if job_object is None:
             print("No job! Exiting...")
