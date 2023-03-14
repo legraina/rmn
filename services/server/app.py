@@ -1,5 +1,4 @@
 from service.template_service import TemplateService
-from utils.box_converter import convert_box_to_list
 from service.user_service import UserService, Role
 from pymongo import MongoClient
 from flask import Flask, request, Response, json, send_file, after_this_request
@@ -560,7 +559,6 @@ def get_documents():
 
     #
     docs = collection.find({"job_id": job_id})
-    count = collection.count_documents({"job_id": job_id})
 
     #
     resp = [
@@ -573,7 +571,7 @@ def get_documents():
             "status": doc["status"],
             "students_list": doc["students_list"],
             "exec_time": doc["execution_time"],
-            "n_total_doc": count,
+            "n_total_doc": len(docs),
         }
         for doc in docs
     ]

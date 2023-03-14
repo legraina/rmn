@@ -456,7 +456,9 @@ def grade_files(
 
         for file in files:
             # check if document has already been processed
-            if db.status_document(job_id, counter) != Document_Status.NOT_READY:
+            doc_status = db.status_document(job_id, counter)
+            if doc_status.value != Document_Status.NOT_READY.value:
+                print("Document", counter, "is ready with status", doc_status.value)
                 counter += 1
                 continue
 
@@ -612,14 +614,14 @@ def grade_files(
 
             db.update_document(
                 job_id,
-                counter + 1,
+                counter,
                 subquestions,
                 numbers[-1],
                 image_id,
                 doc_status,
                 m,
                 exec_time,
-                counter,
+                counter + 1,
             )
 
             sio.emit(
@@ -631,7 +633,7 @@ def grade_files(
                         "document_index": counter,
                         "execution_time": exec_time,
                         "status": doc_status.value,
-                        "n_total_doc": counter,
+                        "n_total_doc": counter + 1,
                     }
                 ),
             )

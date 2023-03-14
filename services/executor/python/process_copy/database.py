@@ -1,4 +1,3 @@
-import uuid
 import configparser
 import os
 import shutil
