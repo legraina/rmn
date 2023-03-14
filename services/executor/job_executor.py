@@ -16,12 +16,14 @@ import json
 import pandas as pd
 import uuid
 import time
+from datetime import datetime, timedelta
 
 
 ROOT_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
 parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 parser.read(CONFIG_FILE)
+MAX_RETRY = int(os.getenv("MAX_RETRY", "5"))
 
 mongo_url = parser.get("MONGODB", "URL")
 redis_host = "redis" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
@@ -48,17 +50,7 @@ def save_number_images(job_id, document_index, questions):
 
 
 if __name__ == "__main__":
-    print("Retrieving job from redis")
-    r = redis.Redis(host=redis_host, port=6379, db=0)
-    job = r.lpop("job_queue")
-
-    if not job:
-        print("No job! Exiting...")
-        exit()
-    job_object = json.loads(job)
-    print("Job:", job_object)
-
-    #
+    # Connect to Mongo
     print("Setting up MongoClient...")
     mongo_client = MongoClient(mongo_url)
 
@@ -68,17 +60,48 @@ if __name__ == "__main__":
     collection_output = db["jobs_output"]
     collection_user = db["users"]
 
-    # Create SocketIO connection
-    sio = socketio.Client()
-    sio.connect(f"http://{socketio_host}:7000")
+    # Retrieve job
+    print("Retrieving job from redis")
+    r = redis.Redis(host=redis_host, port=6379, db=0)
+    print("Check redis job queue")
+    job = r.lpop("job_queue")
 
     try:
+        job_object = None
+        if job:
+            job_object = json.loads(job)
+            job_type = job_object["job_type"]
+        else:
+            print("Check running execution jobs")
+            job_type = "execution"
+            idle_delta_in_sec = 60
+            max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)
+            job_object = collection_eval_jobs.find_one({
+                "job_status": Job_Status.RUN.value,
+                "alive_time": {"$lt": max_alive},
+                "retry": {"$lt", MAX_RETRY + 1}
+            })
+            # if no eval_job, wait to ensure that a job is idle
+            if not job_object:
+                print("Wait", idle_delta_in_sec, "seconds for idle jobs.")
+                time.sleep(idle_delta_in_sec)
+                max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)
+                job_object = collection_eval_jobs.find_one({
+                    "job_status": Job_Status.RUN.value,
+                    "alive_time": {"$lt": max_alive},
+                    "retry": {"$lt", MAX_RETRY + 1}
+                })
+
+        if job_object is None:
+            print("No job! Exiting...")
+            exit()
+
+        print("Job:", job_object)
         job_id = job_object["job_id"]
         user_id = job_object["user_id"]
     except Exception as e:
         print(e)
         mongo_client.close()
-        sio.disconnect()
         raise
 
     WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
@@ -92,8 +115,11 @@ if __name__ == "__main__":
     storage = Storage()
     stopH = StopHandler(collection_eval_jobs, job_id)
 
+    # Create SocketIO connection
+    sio = socketio.Client()
+    sio.connect(f"http://{socketio_host}:7000")
+
     def process():
-        job_type = job_object["job_type"]
         if job_type == "validation":
             #
             moodle_ind = bool(int(job_object["moodle_ind"]))
@@ -440,25 +466,17 @@ if __name__ == "__main__":
 
                 # check if should retry
                 retry = job_params.get("retry", 0)
-                if retry < int(os.getenv("MAX_RETRY", "5")):
+                if retry < MAX_RETRY:
                     collection_eval_jobs.update_one(
                         {"job_id": job_id},
-                        {
-                            "$set": {
-                                "retry": 1,
-                            }
-                        },
+                        {"$inc": {"retry": 1}}
                     )
                     raise e
 
                 # Error handling
                 collection_eval_jobs.update_one(
                     {"job_id": job_id},
-                    {
-                        "$set": {
-                            "job_status": Job_Status.ERROR.value,
-                        }
-                    },
+                    {"$set": {"job_status": Job_Status.ERROR.value}}
                 )
 
                 sio.emit(
@@ -534,6 +552,23 @@ if __name__ == "__main__":
 
     # clean WORK_TMP_DIR
     shutil.rmtree(WORK_TMP_DIR)
+
+    # check if any job is idle and dangling
+    print("Check idle running jobs")
+    # search one idle job
+    max_alive = datetime.utcnow() - timedelta(seconds=120)
+    jobs = collection_eval_jobs.find({
+        "job_status": Job_Status.RUN.value,
+        "alive_time": {"$lt": max_alive},
+        "retry": {"$lt", MAX_RETRY+1}
+    })
+    for j in jobs:
+        print("Resubmit job", j["job_id"])
+        r.lpush("job_queue", {
+            "user_id": j["user_id"],
+            "job_id": j["job_id"],
+            "job_type": "execution"
+        })
 
     mongo_client.close()
     sio.disconnect()

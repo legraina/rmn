@@ -35,13 +35,6 @@ from keras.models import load_model
 from pdf2image import convert_from_path
 from PIL import Image
 from datetime import datetime
-from process_copy.config import re_mat, len_mat, known_mistmatch
-from process_copy.config import MoodleFields as MF
-from process_copy.mcc import get_name, load_csv
-from process_copy.preview import PreviewHandler
-from process_copy.database import Database
-from utils.utils import Document_Status, Job_Status
-import tempfile
 from pathlib import Path
 import shutil
 import socketio
@@ -49,6 +42,13 @@ import json
 import time
 import psutil
 from multiprocessing import Process
+
+from process_copy.config import re_mat, len_mat, known_mistmatch
+from process_copy.config import MoodleFields as MF
+from process_copy.mcc import get_name, load_csv
+from process_copy.preview import PreviewHandler
+from process_copy.database import Database
+from utils.utils import Document_Status, Job_Status
 
 
 DIRPATH = Path(__file__).resolve().parent.joinpath("documents")
@@ -219,13 +219,10 @@ def convert_grade_box_config(list_grade_box):
 def grade_all2(
     paths,
     grades_csv,
-    box,
     box_matricule,
     job_id,
     user_id,
     template_id,
-    is_pdf_file,
-    id_box=None,
     dpi=300,
     shape=(8.5, 11),
 ):
@@ -244,14 +241,11 @@ def grade_all2(
         grade_all(
             paths,
             grades_csv,
-            box,
             box_matricule,
             job_id,
             user_id,
             template_id,
             sio,
-            is_pdf_file,
-            id_box,
             dpi,
             shape,
             max_RAM_GB
@@ -265,14 +259,11 @@ def grade_all2(
 def grade_all(
     paths,
     grades_csv,
-    box,
     box_matricule_default,
     job_id,
     user_id,
     template_id,
     sio,
-    is_pdf_file,
-    id_box=None,
     dpi=300,
     shape=(8.5, 11),
     max_RAM_GB=1000
@@ -285,8 +276,7 @@ def grade_all(
         if box_matricule_list is not None
         else box_matricule_default
     )
-    if is_pdf_file:
-        box_matricule.pop("regular")
+
     box = convert_grade_box_config(box_list)
     # load csv
     grades_dfs, grades_names = load_csv(grades_csv)
@@ -310,11 +300,11 @@ def grade_all(
     # Create a list of matricule-name
     # TODO: only 1 csv supported
     names_df = grades_dfs[0][["Nom complet"]]
-    names_df["matricule"] = names_df.index
+    names_df["matricule"] = names_df.index.copy()
     names_mat_json = names_df.to_json(orient="records")
 
     # Update job status
-    new_job = db.update_job_status("eval_jobs", job_id, Job_Status.RUN) is not None
+    new_job = db.update_job_status_to_run(job_id)
     if new_job:
         print("New job:", job_id)
         sio.emit(
@@ -337,7 +327,6 @@ def grade_all(
                     if not os.path.isfile(file):
                         continue
                     db.insert_document(
-                        "job_documents",
                         job_id,
                         counter,
                         [],
@@ -474,7 +463,7 @@ def grade_files(
 
         for file in files:
             # check if document has already been processed
-            if db.status_document("job_documents", job_id, counter) != Document_Status.NOT_READY:
+            if db.status_document(job_id, counter) != Document_Status.NOT_READY:
                 counter += 1
                 continue
 
@@ -629,7 +618,6 @@ def grade_files(
             exec_time = time.time() - start_time
 
             db.update_document(
-                "job_documents",
                 job_id,
                 counter + 1,
                 subquestions,

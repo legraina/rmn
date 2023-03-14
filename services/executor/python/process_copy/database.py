@@ -2,10 +2,10 @@ import uuid
 import configparser
 import os
 import shutil
+from datetime import datetime
 import cv2
 
 from pymongo import MongoClient
-from pathlib import Path
 from utils.utils import Document_Status, Job_Status
 from utils.storage import Storage, ROOT_DIR
 
@@ -26,7 +26,6 @@ class Database:
 
     def insert_document(
         self,
-        collection_name,
         job_id,
         doc_index,
         subquestion_pred,
@@ -39,7 +38,7 @@ class Database:
         n_total_doc,
         filename,
     ):
-        return self.mongo_database[collection_name].insert_one(
+        return self.mongo_database["job_documents"].insert_one(
             {
                 "job_id": job_id,
                 "document_index": doc_index,
@@ -55,15 +54,14 @@ class Database:
             }
         )
 
-    def status_document(self, collection_name, job_id, doc_index):
-        doc = self.mongo_database[collection_name].find_one({"job_id": job_id, "document_index": doc_index})
+    def status_document(self, job_id, doc_index):
+        doc = self.mongo_database["job_documents"].find_one({"job_id": job_id, "document_index": doc_index})
         if doc:
             return doc['status']
         return Document_Status.NOT_READY
 
     def update_document(
         self,
-        collection_name,
         job_id,
         doc_index,
         subquestion_pred,
@@ -74,7 +72,13 @@ class Database:
         time,
         n_total_doc,
     ):
-        return self.mongo_database[collection_name].update_one(
+        # update alive time stamp
+        self.mongo_database["eval_jobs"].update_one(
+            {"job_id": job_id},
+            {"$set": {"alive_time": datetime.utcnow()}},
+        )
+        # return updated doc
+        return self.mongo_database["job_documents"].update_one(
             {"job_id": job_id, "document_index": doc_index},
             {
                 "$set": {
@@ -89,11 +93,18 @@ class Database:
             },
         )
 
-    def update_job_status(self, collection_name, job_id, status):
-        return self.mongo_database[collection_name].update_one(
-            {"job_id": job_id, "job_status": Job_Status.QUEUED},
-            {"$set": {"job_status": status.value}},
-        )
+    def update_job_status_to_run(self, job_id):
+        if self.mongo_database["eval_jobs"].update_one(
+                {"job_id": job_id, "job_status": Job_Status.QUEUED.value},
+                {"$set": {"job_status": Job_Status.RUN.value,
+                          "retry": 0,
+                          "alive_time": datetime.utcnow()}
+                 }) is None:
+            self.mongo_database["eval_jobs"].update_one(
+                {"job_id": job_id},
+                {"$set": {"alive_time": datetime.utcnow()}})
+            return False
+        return True
 
     def save_preview_image(self, src, job_id, document_index):
         filename = f"documents/{job_id}/{document_index}.png"

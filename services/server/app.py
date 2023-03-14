@@ -230,9 +230,8 @@ def evaluate():
         zip_file = request.files.get("zip_file")
         zip_file_name = secure_filename(zip_file.filename)
 
-        is_pdf_file = str(zip_file_name).endswith(".pdf")
         # transform into zip file
-        if is_pdf_file:
+        if str(zip_file_name).endswith(".pdf"):
             reader = PdfReader(zip_file)
             folder_to_zip = TEMP_FOLDER.joinpath("folder_to_zip")
 
@@ -283,22 +282,20 @@ def evaluate():
     sio.disconnect()
 
     thread = Thread(target=evaluate_thread,
-    kwargs={
-        "job_id": job_id,
-        "notes_file_id": notes_file_id,
-        "zip_file_id": zip_file_id,
-        "job": job,
-        "user_id": user_id,
-        "zip_file_name": zip_file_name,
-        "notes_csv_file_name": notes_csv_file_name,
-        "is_pdf_file": is_pdf_file
-
-    })
+                    kwargs={
+                        "job_id": job_id,
+                        "notes_file_id": notes_file_id,
+                        "zip_file_id": zip_file_id,
+                        "job": job,
+                        "user_id": user_id,
+                        "zip_file_name": zip_file_name,
+                        "notes_csv_file_name": notes_csv_file_name
+                    })
     thread.start()
 
     return Response(response=json.dumps({"response": "OK"}), status=200)
 
-def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_name, notes_csv_file_name, is_pdf_file):
+def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_name, notes_csv_file_name):
     try:
         file_name = str(TEMP_FOLDER.joinpath(zip_file_name))
         storage.move_to(file_name, zip_file_id)
@@ -341,8 +338,7 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
     queue_object = {
         "job_type": "execution",
         "job_id": job["job_id"],
-        "user_id": job["user_id"],
-        "is_pdf_file": is_pdf_file
+        "user_id": job["user_id"]
     }
     r.rpush("job_queue", json.dumps(queue_object))
 
