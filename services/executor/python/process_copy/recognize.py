@@ -316,7 +316,7 @@ def grade_all(
     # Create DB entry for each pdf file
     print("Retrieving files to grade and initializing entry in Mongo")
     counter = 0
-    files = []
+    g_files = []
     for path in paths:
         for root, dirs, files in os.walk(path):
             for f in files:
@@ -325,7 +325,7 @@ def grade_all(
                 file = os.path.join(root, f)
                 if not os.path.isfile(file):
                     continue
-                files.append(file)
+                g_files.append(file)
                 if new_job:
                     db.insert_document(
                         job_id,
@@ -347,9 +347,9 @@ def grade_all(
 
     counter = 0
     batch = 1
-    while counter < len(files):
+    while counter < len(g_files):
         # grade file in a different process
-        g_args = (files[counter::], counter, grades_csv, max_grade,
+        g_args = (g_files[counter::], counter, grades_csv, max_grade,
                   job_id, user_id, sio, db,
                   box_matricule, box, dpi, shape, max_RAM_GB)
         print("Run batch", batch, 'with args:', g_args)
