@@ -352,7 +352,7 @@ def grade_all(
         g_args = (g_files[counter::], counter, grades_csv, max_grade,
                   job_id, user_id, sio, db,
                   box_matricule, box, dpi, shape, max_RAM_GB)
-        print("Run batch", batch, 'with args:', g_args)
+        print("Run batch", batch)
         # def target_func(*args):
         #     c = grade_files(*args)
         #     exit(c)

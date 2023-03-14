@@ -3,6 +3,8 @@ import configparser
 from pymongo import MongoClient
 from pathlib import Path
 from python.process_copy.parser import parse_run_args
+from python.process_copy.recognize import get_date
+from python.process_copy.config import MoodleFields as MF
 from utils.utils import Job_Status, Document_Status
 from utils.storage import Storage
 from utils.stop_handler import StopHandler
@@ -78,7 +80,7 @@ if __name__ == "__main__":
             job_objects = collection_eval_jobs.find({
                 "job_status": Job_Status.RUN.value,
                 "alive_time": {"$lt": max_alive},
-                "retry": {"$lt", MAX_RETRY + 1}
+                "retry": {"$lt": MAX_RETRY + 1}
             })
             # if no eval_job, wait to ensure that a job is idle
             if not job_objects:
@@ -88,7 +90,7 @@ if __name__ == "__main__":
                 job_objects = collection_eval_jobs.find({
                     "job_status": Job_Status.RUN.value,
                     "alive_time": {"$lt": max_alive},
-                    "retry": {"$lt", MAX_RETRY + 1}
+                    "retry": {"$lt": MAX_RETRY + 1}
                 })
 
             if job_objects:
@@ -145,12 +147,12 @@ if __name__ == "__main__":
             validated_copies_folder_path.mkdir(exist_ok=True)
 
             # Save file to local
-            file_path = str(VALIDATE_FOLDER.joinpath('notes.csv'))
-            storage.copy_from(notes_csv_file_id, file_path)
+            csv_file_path = str(VALIDATE_FOLDER.joinpath('notes.csv'))
+            storage.copy_from(notes_csv_file_id, csv_file_path)
             print("notes.csv file created")
 
             #
-            df = pd.read_csv(file_path, index_col="Matricule", dtype={"Matricule": str})
+            df = pd.read_csv(csv_file_path, index_col=MF.mat, dtype={MF.mat: str})
 
             # check if group or gr column is present
             group_label = None
@@ -163,14 +165,15 @@ if __name__ == "__main__":
 
             #
             print(f"Col: {df.columns}")
-
+            dt = get_date()
             for document_index, doc in enumerate(docs):
-                if str(doc["matricule"]) in df.index.values:
+                mat = str(doc["matricule"])
+                if mat in df.index.values:
                     for key in doc["subquestion_predictions"].keys():
-                        df.loc[str(doc["matricule"]), key] = doc["subquestion_predictions"][
-                            key
-                        ]
-                    df.loc[str(doc["matricule"]), "Note"] = doc["total"]
+                        df.loc[mat, key] = doc["subquestion_predictions"][key]
+                    df.loc[mat, MF.grade] = doc["total"]
+                    df.loc[mat, MF.mdate] = dt
+            df.to_csv(csv_file_path, mode="w+")
 
             #
             collection.update_many(
@@ -234,7 +237,7 @@ if __name__ == "__main__":
 
                         matricule = str(doc["matricule"])
                         try:
-                            nom_complet = df.at[matricule, "Nom complet"]
+                            nom_complet = df.at[matricule, MF.name]
                         except Exception as e:
                             print(e)
                             print("Matricule", matricule, "not found in csv.")
@@ -250,8 +253,7 @@ if __name__ == "__main__":
 
                         if moodle_ind:
                             # create folder
-                            identifiant = df.at[str(doc["matricule"]), "Identifiant"]
-                            matricule = str(doc["matricule"])
+                            identifiant = df.at[matricule, MF.id]
                             folder_name = f"{nom_complet}_{identifiant}_{matricule}_assignsubmission_file_"
                             print("folder name", folder_name)
                             m_folder = moodle_folder_path.joinpath(folder_name)
@@ -266,7 +268,7 @@ if __name__ == "__main__":
 
                         copies_path = all_copies_folder_path
                         if group_label:
-                            group = df.at[str(doc["matricule"]), group_label]
+                            group = df.at[matricule, group_label]
                             copies_path = copies_path.joinpath(str(group))
                             copies_path.mkdir(exist_ok=True)
                         dest = copies_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
@@ -339,16 +341,13 @@ if __name__ == "__main__":
             if moodle_ind:
                 zip_id_list += moodle_zip_id_list
 
-
-            df.to_csv(file_path, mode="w+")
-
             if stopH.stop():
                 print("Job has been deleted.")
                 return
 
             try:
                 n_csv = f"output_csv/{job_id}.csv"
-                storage.move_to(file_path, n_csv)
+                storage.move_to(csv_file_path, n_csv)
 
                 #
                 collection_output.update_one(
@@ -562,15 +561,16 @@ if __name__ == "__main__":
     jobs = collection_eval_jobs.find({
         "job_status": Job_Status.RUN.value,
         "alive_time": {"$lt": max_alive},
-        "retry": {"$lt", MAX_RETRY+1}
+        "retry": {"$lt": MAX_RETRY+1}
     })
     for j in jobs:
         print("Resubmit job", j["job_id"])
-        r.lpush("job_queue", {
+        d_json = {
             "user_id": j["user_id"],
             "job_id": j["job_id"],
             "job_type": "execution"
-        })
+        }
+        r.lpush("job_queue", json.dumps(d_json))
 
     mongo_client.close()
     sio.disconnect()

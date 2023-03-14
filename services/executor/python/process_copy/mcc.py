@@ -114,11 +114,11 @@ def copy_files_for_moodle(paths, mpath=None, grades_csv=[]):
     moodle_folders = os.listdir(mpath) if not grades_csv else None
     n = 0
     gpaths = ["%s/" % n for n in grades_names] if len(grades_csv) > 1 else [""]
+    print("Copy files for moodle structure")
     for path in paths:
         for root, dirs, files in os.walk(path):
             for f in files:
                 file = os.path.join(root, f)
-                print("print copy file file : ", file)
                 if os.path.isfile(file) and f.endswith(".pdf") and not f.startswith("."):
                     try:
                         # search matricule
@@ -141,9 +141,7 @@ def copy_files_for_moodle(paths, mpath=None, grades_csv=[]):
                     if grades_dfs:
                         for i, g in enumerate(grades_dfs):
                             if mat in g.index:
-                                print("mat", mat)
                                 participant = str(g.at[mat, MF.id])
-                                print("participant", participant)
                                 m = re.search("\\d+", participant)
                                 if not m:
                                     print(
@@ -287,15 +285,12 @@ def zipdirbatch(path, archive="moodle", batch=None):
     print("Compressing ", end="", flush=True)
     print(path)
     for root, dirs, files in os.walk(path):
-        print("current root:", root)
         for file in files:
-            print("sup boi", os.path.join(root, file))
             i = i + 1
             pfile = os.path.join(root, file)
             ziph.write(pfile, os.path.relpath(pfile, path))  # add the file to the zip
             mbs = os.path.getsize(pfile) / MB  # file size in Mb
             asize += mbs
-            print(f"asize {asize}")
             if batch and asize >= batch:
                 print("\nArchive %s.zip created." % narchive)
                 j = j + 1
