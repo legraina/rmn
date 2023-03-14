@@ -18,7 +18,7 @@ URL = parser.get("MONGODB", "URL")
 
 
 class Database:
-    def __init__(self, db_name, storage_path = None):
+    def __init__(self, db_name, storage_path=None):
         self.mongo_client = MongoClient(URL)
         self.mongo_database = self.mongo_client[db_name]
         self.storage = Storage(storage_path)
@@ -51,11 +51,10 @@ class Database:
             }
         )
 
-    def status_document(self, job_id, doc_index):
-        doc = self.mongo_database["job_documents"].find_one({"job_id": job_id, "document_index": doc_index})
-        if doc:
-            return doc['status']
-        return Document_Status.NOT_READY.value
+    def get_document(self, job_id, doc_index):
+        return self.mongo_database["job_documents"].find_one({
+            "job_id": job_id, "document_index": doc_index
+        })
 
     def update_document(
         self,
@@ -68,11 +67,15 @@ class Database:
         matricule,
         time,
         n_total_doc,
+        max_nb_question
     ):
         # update alive time stamp
         self.mongo_database["eval_jobs"].update_one(
             {"job_id": job_id},
-            {"$set": {"alive_time": datetime.utcnow()}},
+            {"$set": {
+                "alive_time": datetime.utcnow(),
+                "max_questions": max_nb_question
+            }}
         )
         # return updated doc
         return self.mongo_database["job_documents"].update_one(
@@ -90,19 +93,30 @@ class Database:
             },
         )
 
+    def get_job_max_questions(self, job_id):
+        doc = self.mongo_database["eval_jobs"].find_one({"job_id": job_id})
+        if doc:
+            return doc["max_questions"]
+        return 1
+
     def update_job_status_to_run(self, job_id, students_list):
-        if self.mongo_database["eval_jobs"].update_one(
-                {"job_id": job_id, "job_status": Job_Status.QUEUED.value},
-                {"$set": {"job_status": Job_Status.RUN.value,
-                          "retry": 0,
-                          "alive_time": datetime.utcnow(),
-                          "students_list": students_list}
-                 }) is None:
-            self.mongo_database["eval_jobs"].update_one(
-                {"job_id": job_id},
-                {"$set": {"alive_time": datetime.utcnow()}})
-            return False
-        return True
+        # try to change job status if first try
+        r = self.mongo_database["eval_jobs"].update_one(
+            {"job_id": job_id, "job_status": Job_Status.QUEUED.value},
+            {"$set": {"job_status": Job_Status.RUN.value,
+                      "retry": 0,
+                      "alive_time": datetime.utcnow(),
+                      "students_list": students_list,
+                      "max_questions": 1}
+             }
+        )
+        if r.matched_count > 0:
+            return True
+        # otherwise, just update alive timestamp
+        self.mongo_database["eval_jobs"].update_one(
+            {"job_id": job_id},
+            {"$set": {"alive_time": datetime.utcnow()}})
+        return False
 
     def save_preview_image(self, src, job_id, document_index):
         filename = f"documents/{job_id}/{document_index}.png"

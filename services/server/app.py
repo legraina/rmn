@@ -595,6 +595,7 @@ def get_documents():
 
     #
     docs = collection.find({"job_id": job_id})
+    count = collection.count_documents({"job_id": job_id})
 
     #
     resp = [
@@ -606,7 +607,7 @@ def get_documents():
             "total": doc["total"],
             "status": doc["status"],
             "exec_time": doc["execution_time"],
-            "n_total_doc": len(docs),
+            "n_total_doc": count
         }
         for doc in docs
     ]

@@ -442,7 +442,7 @@ def grade_files(
         # grades_data = []
         dt = get_date()
         trim = box["trim"] if "trim" in box else None
-        max_nb_question = 1
+        max_nb_question = db.get_job_max_questions(job_id)
 
         shape = (int(dpi * shape[0]), int(dpi * shape[1]))
         # loading our CNN model
@@ -455,9 +455,9 @@ def grade_files(
 
         for file in files:
             # check if document has already been processed
-            doc_status = db.status_document(job_id, counter)
-            if doc_status != Document_Status.NOT_READY.value:
-                print("Document", counter, "is ready with status", doc_status)
+            doc = db.get_document(job_id, counter)
+            if doc['status'] != Document_Status.NOT_READY.value:
+                print("Document", counter, "is ready with status", doc['status'])
                 counter += 1
                 continue
 
@@ -569,6 +569,7 @@ def grade_files(
                         % (filename, grades_dfs[i].at[m, MF.grade], numbers[-1])
                         + Style.RESET_ALL
                     )
+                    numbers[-1] = grades_dfs[i].at[m, MF.grade]
                 else:
                     print("%s: found same grade %.2f" % (filename, numbers[-1]))
             else:
@@ -621,6 +622,7 @@ def grade_files(
                 m,
                 exec_time,
                 counter + 1,
+                max_nb_question
             )
 
             sio.emit(
