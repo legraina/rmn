@@ -57,7 +57,7 @@ r = redis.Redis(host=redis_host, port=6379, db=0)
 storage = Storage()
 
 
-def verify_token(role = None):
+def verify_token(role=None):
     def _verify_token(f):
         @wraps(f)
         def __verify_token(*args, **kwargs):
@@ -208,6 +208,7 @@ def evaluate():
         "job_status": Job_Status.QUEUED.value,
         "notes_file_id": notes_file_id,
         "zip_file_id": zip_file_id,
+        "students_list": []
     }
 
     try:
@@ -397,16 +398,14 @@ def get_jobs():
     # Define db and collection used
     db = mongo_client["RMN"]
     collection = db["eval_jobs"]
-    template_collection = db["template"]
 
     request_form = request.form
-    user_id = str(request_form["user_id"])
-
     if "user_id" not in request_form:
         return Response(
             response=json.dumps({"response": f"Error: user_id not provided."}),
             status=400,
         )
+    user_id = str(request_form["user_id"])
 
     # Get all jobs from DB
     jobs = collection.find({"user_id": user_id})
@@ -425,6 +424,43 @@ def get_jobs():
     ]
 
     #
+    return Response(response=json.dumps({"response": resp}), status=200)
+
+
+@app.route("/job", methods=["POST"])
+@cross_origin()
+@verify_token()
+def get_job():
+    # Define db and collection used
+    db = mongo_client["RMN"]
+    collection = db["eval_jobs"]
+
+    request_form = request.form
+    if "job_id" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: job_id not provided."}),
+            status=400
+        )
+    job_id = str(request_form["job_id"])
+
+    # Get all jobs from DB
+    job = collection.find_one({"job_id": job_id})
+    if not job:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} doesn't exist."}),
+            status=400
+        )
+
+    #
+    resp = {
+        "job_id": job["job_id"],
+        "template_id": job["template_id"],
+        "queued_time": str(job["queued_time"]),
+        "job_status": job["job_status"],
+        "job_name": job["job_name"],
+        "template_name": job["template_name"],
+        "students_list": job["students_list"]
+    }
     return Response(response=json.dumps({"response": resp}), status=200)
 
 
@@ -569,7 +605,6 @@ def get_documents():
             "matricule": doc["matricule"],
             "total": doc["total"],
             "status": doc["status"],
-            "students_list": doc["students_list"],
             "exec_time": doc["execution_time"],
             "n_total_doc": len(docs),
         }

@@ -303,7 +303,7 @@ def grade_all(
     names_mat_json = names_mat_df.to_json(orient="records")
 
     # Update job status
-    new_job = db.update_job_status_to_run(job_id)
+    new_job = db.update_job_status_to_run(job_id, names_mat_json)
     if new_job:
         print("New job:", job_id)
         sio.emit(
@@ -335,7 +335,6 @@ def grade_all(
                         "",
                         Document_Status.NOT_READY,
                         "",
-                        names_mat_json,
                         0,
                         0,
                         f,
@@ -457,8 +456,8 @@ def grade_files(
         for file in files:
             # check if document has already been processed
             doc_status = db.status_document(job_id, counter)
-            if doc_status.value != Document_Status.NOT_READY.value:
-                print("Document", counter, "is ready with status", doc_status.value)
+            if doc_status != Document_Status.NOT_READY.value:
+                print("Document", counter, "is ready with status", doc_status)
                 counter += 1
                 continue
 

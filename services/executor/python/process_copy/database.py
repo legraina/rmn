@@ -32,7 +32,6 @@ class Database:
         image_id,
         status,
         matricule,
-        students_list,
         time,
         n_total_doc,
         filename,
@@ -46,7 +45,6 @@ class Database:
                 "total": total,
                 "image_id": image_id,
                 "status": status.value,
-                "students_list": students_list,
                 "execution_time": time,
                 "n_total_doc": n_total_doc,
                 "filename": filename,
@@ -57,7 +55,7 @@ class Database:
         doc = self.mongo_database["job_documents"].find_one({"job_id": job_id, "document_index": doc_index})
         if doc:
             return doc['status']
-        return Document_Status.NOT_READY
+        return Document_Status.NOT_READY.value
 
     def update_document(
         self,
@@ -92,12 +90,13 @@ class Database:
             },
         )
 
-    def update_job_status_to_run(self, job_id):
+    def update_job_status_to_run(self, job_id, students_list):
         if self.mongo_database["eval_jobs"].update_one(
                 {"job_id": job_id, "job_status": Job_Status.QUEUED.value},
                 {"$set": {"job_status": Job_Status.RUN.value,
                           "retry": 0,
-                          "alive_time": datetime.utcnow()}
+                          "alive_time": datetime.utcnow(),
+                          "students_list": students_list}
                  }) is None:
             self.mongo_database["eval_jobs"].update_one(
                 {"job_id": job_id},
