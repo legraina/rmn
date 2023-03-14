@@ -445,7 +445,7 @@ def get_job():
 
     # Get all jobs from DB
     job = collection.find_one({"job_id": job_id})
-    if not job:
+    if job is None:
         return Response(
             response=json.dumps({"response": f"Error: job {job_id} doesn't exist."}),
             status=400

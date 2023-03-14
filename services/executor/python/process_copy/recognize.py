@@ -348,19 +348,20 @@ def grade_all(
     batch = 1
     while counter < len(g_files):
         # grade file in a different process
-        g_args = (g_files[counter::], counter, grades_csv, max_grade,
+        g_args = (g_files, counter, grades_csv, max_grade,
                   job_id, user_id, sio, db,
                   box_matricule, box, dpi, shape, max_RAM_GB)
         print("Run batch", batch)
-        # def target_func(*args):
-        #     c = grade_files(*args)
-        #     exit(c)
-        # p = Process(target=target_func, args=args)
-        # p.start()
-        # p.join()
-        # counter = p.exitcode
 
-        counter = grade_files(*g_args)
+        def target_func(*args):
+            c = grade_files(*args)
+            exit(c)
+        p = Process(target=target_func, args=g_args)
+        p.start()
+        p.join()
+        counter = p.exitcode
+
+        # counter = grade_files(*g_args)
 
         # Getting usage of virtual_memory in GB ( 4th field)
         print(counter, "files have been processed.")
@@ -422,7 +423,7 @@ def grade_all(
 
 def grade_files(
         files,
-        counter,
+        initial_counter,
         grades_csv,
         max_grade,
         job_id,
@@ -453,11 +454,18 @@ def grade_files(
         # matricule
         matricules_data = {}
 
+        counter = 0
         for file in files:
             # check if document has already been processed
             doc = db.get_document(job_id, counter)
             if doc['status'] != Document_Status.NOT_READY.value:
-                print("Document", counter, "is ready with status", doc['status'])
+                if counter >= initial_counter:
+                    print("Document", counter, "is ready with status", doc['status'])
+                m = doc["matricule"]
+                if m not in matricules_data:
+                    matricules_data[m] = [file]
+                else:
+                    matricules_data[m].append(file)
                 counter += 1
                 continue
 

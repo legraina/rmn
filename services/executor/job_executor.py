@@ -68,7 +68,6 @@ if __name__ == "__main__":
     job = r.lpop("job_queue")
 
     try:
-        job_object = None
         if job:
             job_object = json.loads(job)
             job_type = job_object["job_type"]
@@ -77,24 +76,21 @@ if __name__ == "__main__":
             job_type = "execution"
             idle_delta_in_sec = 60
             max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)
-            job_objects = collection_eval_jobs.find({
+            job_object = collection_eval_jobs.find_one({
                 "job_status": Job_Status.RUN.value,
                 "alive_time": {"$lt": max_alive},
                 "retry": {"$lt": MAX_RETRY + 1}
             })
             # if no eval_job, wait to ensure that a job is idle
-            if not job_objects:
+            if not job_object:
                 print("Wait", idle_delta_in_sec, "seconds for idle jobs.")
                 time.sleep(idle_delta_in_sec)
                 max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)
-                job_objects = collection_eval_jobs.find({
+                job_object = collection_eval_jobs.find_one({
                     "job_status": Job_Status.RUN.value,
                     "alive_time": {"$lt": max_alive},
                     "retry": {"$lt": MAX_RETRY + 1}
                 })
-
-            if job_objects:
-                job_object = job_objects[0]
 
         if job_object is None:
             print("No job! Exiting...")
@@ -222,7 +218,7 @@ if __name__ == "__main__":
 
                         doc = collection.find_one({"job_id": job_id, "filename": str(f)})
 
-                        if not doc:
+                        if doc is None:
                             continue
 
                         doc_idx = doc["document_index"]
@@ -419,7 +415,7 @@ if __name__ == "__main__":
             job_params = collection_eval_jobs.find_one({"job_id": job_id})
             print(job_params)
 
-            if not job_params:
+            if job_params is None:
                 print("No params found!")
                 mongo_client.close()
                 exit()
