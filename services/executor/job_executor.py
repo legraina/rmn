@@ -63,7 +63,6 @@ if __name__ == "__main__":
     # Retrieve job
     print("Retrieving job from redis")
     r = redis.Redis(host=redis_host, port=6379, db=0)
-    print("Check redis job queue")
     job = r.lpop("job_queue")
 
     try:
@@ -72,7 +71,7 @@ if __name__ == "__main__":
             job_object = json.loads(job)
             job_type = job_object["job_type"]
         else:
-            print("Check running execution jobs")
+            print("Check running execution jobs from Mongo")
             job_type = "execution"
             idle_delta_in_sec = 60
             max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)

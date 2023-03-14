@@ -314,17 +314,19 @@ def grade_all(
         )
 
     # Create DB entry for each pdf file
+    print("Retrieving files to grade and initializing entry in Mongo")
     counter = 0
-    db = Database("RMN")
-    if new_job:
-        for path in paths:
-            for root, dirs, files in os.walk(path):
-                for f in files:
-                    if "__MACOSX" in f or not f.endswith(".pdf") or f.startswith("."):
-                        continue
-                    file = os.path.join(root, f)
-                    if not os.path.isfile(file):
-                        continue
+    files = []
+    for path in paths:
+        for root, dirs, files in os.walk(path):
+            for f in files:
+                if "__MACOSX" in f or not f.endswith(".pdf") or f.startswith("."):
+                    continue
+                file = os.path.join(root, f)
+                if not os.path.isfile(file):
+                    continue
+                files.append(file)
+                if new_job:
                     db.insert_document(
                         job_id,
                         counter,
@@ -338,20 +340,10 @@ def grade_all(
                         0,
                         f,
                     )
-                    counter += 1
+                counter += 1
 
     if not os.path.exists(DIRPATH):
         os.makedirs(DIRPATH)
-
-    files = []
-    for path in paths:
-        for root, dirs, files in os.walk(path):
-            for f in files:
-                if "__MACOSX" in f or not f.endswith(".pdf") or f.startswith("."):
-                    continue
-                file = os.path.join(root, f)
-                if os.path.isfile(file):
-                    files.append(file)
 
     counter = 0
     batch = 1
@@ -372,12 +364,14 @@ def grade_all(
         counter = grade_files(*g_args)
 
         # Getting usage of virtual_memory in GB ( 4th field)
+        print(counter, "files have been processed.")
         print('RAM Used - end batch', batch, '(GB):', psutil.virtual_memory()[3] / 1000000000)
         batch += 1
 
     sio.disconnect()
 
     # check the number of files that have benn dropped on moodle if any
+    print("Store grades in csv")
     n = 0
     for df in grades_dfs:
         for idx, row in df.iterrows():
