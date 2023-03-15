@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 from pathlib import Path
 from utils.utils import Job_Status, Output_File, Document_Status
 from utils.storage import Storage
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from io import FileIO
 from PyPDF2 import PdfWriter, PdfReader
 from service.front_page_service import FrontPageHandler
@@ -415,15 +415,34 @@ def get_jobs():
     #
     resp = [
         {
+            "user_id": job["user_id"],
             "job_id": job["job_id"],
             "template_id": job["template_id"],
             "queued_time": str(job["queued_time"]),
             "job_status": job["job_status"],
             "job_name": job["job_name"],
             "template_name": job["template_name"],
+            "alive_time": job["alive_time"]
         }
         for job in jobs
     ]
+
+    # wake up workers in case some jobs died
+    max_alive = datetime.utcnow() - timedelta(seconds=120)
+    for job in resp:
+        if job["alive_time"] < max_alive and job["job_status"] == Job_Status.RUN.value:
+            res = collection.update_one(
+                {"job_id": job["job_id"], "job_status": Job_Status.RUN.value},
+                {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
+            )
+            if res.matched_count > 0:
+                queue_object = {
+                    "job_type": "execution",
+                    "job_id": job["job_id"],
+                    "user_id": job["user_id"]
+                }
+                r.rpush("job_queue", json.dumps(queue_object))
+                break
 
     #
     return Response(response=json.dumps({"response": resp}), status=200)

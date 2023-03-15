@@ -509,15 +509,18 @@ if __name__ == "__main__":
         if job:
             print("Job:", job)
             job = json.loads(job)
+
             # create tmp work dir
             job_id = job["job_id"]
             WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
             WORK_TMP_DIR.mkdir(exist_ok=True)
+
             # process job
             try:
                 process(job, WORK_TMP_DIR)
             except:
                 pass
+
             # clean
             shutil.rmtree(WORK_TMP_DIR)
 
@@ -529,11 +532,10 @@ if __name__ == "__main__":
             max_alive = datetime.utcnow() - timedelta(seconds=120)
             jobs = collection_eval_jobs.find({
                 "job_status": Job_Status.RUN.value,
-                "alive_time": {"$lt": max_alive},
-                "retry": {"$lt": MAX_RETRY + 1}
+                "alive_time": {"$lt": max_alive}
             })
-            # requeue idle jobs
-            idle_jobs = False
+            # requeue old idle jobs
+            old_idle_jobs = False
             for j in jobs:
                 print("Resubmit job", j["job_id"])
                 # change status to ensure that a job is not resubmitted several times
@@ -548,31 +550,33 @@ if __name__ == "__main__":
                         "job_type": "execution"
                     }
                     r.lpush("job_queue", json.dumps(d_json))
-                idle_jobs = True
+                old_idle_jobs = True
 
             # continue if idle jobs
-            if idle_jobs:
+            if old_idle_jobs:
                 break
 
-            # check if any job is running. If yes, sleep, otherwise break
+            # check if all running jobs are idle. If yes, sleep, otherwise break
             print("Check alive running jobs")
             jobs = collection_eval_jobs.find({
-                "job_status": Job_Status.RUN.value,
-                "retry": {"$lt": MAX_RETRY + 1}
+                "job_status": Job_Status.RUN.value
             })
-            one_job_alive = False
+            all_jobs_idle = False
             for j in jobs:
                 job_id = j["job_id"]
                 alive_t = alive_times.get(job_id, datetime.utcnow())
                 # check if alive_time has increased, and thus job is alived
                 if j["alive_time"] > alive_t:
-                    one_job_alive = True
+                    all_jobs_idle = False
                     break
+                all_jobs_idle = True
                 alive_times[job_id] = j["alive_time"]
             # if one job alive -> stop
-            if one_job_alive:
+            if not all_jobs_idle:
+                print("All jobs are not idle.")
                 break
             # otherwise, sleep
+            print("Sleep before checking again running jobs.")
             time.sleep(5)
 
     except Exception as e:
