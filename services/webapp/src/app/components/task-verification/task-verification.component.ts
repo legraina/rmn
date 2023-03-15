@@ -307,15 +307,10 @@ export class TaskVerificationComponent implements OnInit {
       return;
     }
     Object.keys(this.currentPredictions).forEach(key => {
-      var inputValue = (<HTMLInputElement>document.getElementById(key.replace(/\s/g, ''))).value;
+      let inputValue = (<HTMLInputElement>document.getElementById(key.replace(/\s/g, ''))).value;
       this.currentPredictions[key] = Number(inputValue);
     });
-
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy) {
-        exam["total"] = this.currentTotal;
-      }
-    });
+    this.examsList[this.currentIndex()]["total"] = this.currentTotal;
 
     let response = await this.validationService.validateDocument(
       this.tasksService.getvalidatingTaskId(),
@@ -407,31 +402,27 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   getDuplicatedMatricule(): void {
-    let duplicatedList: Array<number> = [];
+    // search for duplicated matricules
     let mat = String(this.currentMatricule);
+    let counter = 0;
+    let warning = "";
     this.examsList.forEach((exam: any) => {
-      if (exam["matricule"] === mat) {
-        duplicatedList.push(exam["document_index"]);
+      if (exam["matricule"] === mat && exam["document_index"] !== this.currentCopy) {
+        if (counter < 3) {
+          if (counter > 0) {
+            warning += ", ";
+          }
+          warning += exam["document_index"];
+        } else if (counter == 3) {
+          warning += " ..";
+        }
+        counter += 1;
       }
     });
-    this.currentMatriculeWarning = undefined;
-    if (duplicatedList.length > 1) {
-      let warning = "";
-      let len = duplicatedList.length;
-      if (len > 3) {
-        len = 3;
-      }
-      for (let i = 0; i < len; i++) {
-        if (i > 0) {
-          warning += ", ";
-        }
-        warning += duplicatedList[i];
-      }
-      if (len < duplicatedList.length - 1) {
-        warning += "...";
-      } else if (len === duplicatedList.length - 1) {
-        warning += " et " + duplicatedList[len];
-      }
+    // update warning message for matricule
+    if (counter == 0) {
+      this.currentMatriculeWarning = undefined;
+    } else {
       this.currentMatriculeWarning = warning;
     }
   }
