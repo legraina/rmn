@@ -33,6 +33,8 @@ socketio_host = (
     "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
 )
 
+storage = Storage()
+
 
 def save_number_images(job_id, document_index, questions):
     try:
@@ -62,68 +64,28 @@ if __name__ == "__main__":
     collection_output = db["jobs_output"]
     collection_user = db["users"]
 
-    # Retrieve job
-    print("Retrieving job from redis")
-    r = redis.Redis(host=redis_host, port=6379, db=0)
-    job = r.lpop("job_queue")
-
-    try:
-        if job:
-            job_object = json.loads(job)
-            job_type = job_object["job_type"]
-        else:
-            print("Check running execution jobs from Mongo")
-            job_type = "execution"
-            idle_delta_in_sec = 60
-            max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)
-            job_object = collection_eval_jobs.find_one({
-                "job_status": Job_Status.RUN.value,
-                "alive_time": {"$lt": max_alive},
-                "retry": {"$lt": MAX_RETRY + 1}
-            })
-            # if no eval_job, wait to ensure that a job is idle
-            if not job_object:
-                print("Wait", idle_delta_in_sec, "seconds for idle jobs.")
-                time.sleep(idle_delta_in_sec)
-                max_alive = datetime.utcnow() - timedelta(seconds=idle_delta_in_sec)
-                job_object = collection_eval_jobs.find_one({
-                    "job_status": Job_Status.RUN.value,
-                    "alive_time": {"$lt": max_alive},
-                    "retry": {"$lt": MAX_RETRY + 1}
-                })
-
-        if job_object is None:
-            print("No job! Exiting...")
-            exit()
-
-        print("Job:", job_object)
-        job_id = job_object["job_id"]
-        user_id = job_object["user_id"]
-    except Exception as e:
-        print(e)
-        mongo_client.close()
-        raise
-
-    WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
-    WORK_TMP_DIR.mkdir(exist_ok=True)
-    MOODLE_ZIP = WORK_TMP_DIR.joinpath("moodle.zip")
-    MOODLE_FOLDER = WORK_TMP_DIR.joinpath("moodle")
-    OUTPUT_FOLDER = WORK_TMP_DIR.joinpath("output")
-    EXTRACT_FOLDER = WORK_TMP_DIR.joinpath("extract")
-    VALIDATE_FOLDER = WORK_TMP_DIR.joinpath("validate")
-
-    storage = Storage()
-    stopH = StopHandler(collection_eval_jobs, job_id)
-
     # Create SocketIO connection
     sio = socketio.Client()
     sio.connect(f"http://{socketio_host}:7000")
 
-    def process():
-        if job_type == "validation":
-            #
-            moodle_ind = bool(int(job_object["moodle_ind"]))
+    # create redis connection
+    r = redis.Redis(host=redis_host, port=6379, db=0)
 
+    def process(p_job, TMP_DIR):
+        job_id = p_job["job_id"]
+        user_id = p_job["user_id"]
+        job_type = p_job["job_type"]
+
+        MOODLE_ZIP = TMP_DIR.joinpath("moodle.zip")
+        MOODLE_FOLDER = TMP_DIR.joinpath("moodle")
+        OUTPUT_FOLDER = TMP_DIR.joinpath("output")
+        EXTRACT_FOLDER = TMP_DIR.joinpath("extract")
+        VALIDATE_FOLDER = TMP_DIR.joinpath("validate")
+
+        stopH = StopHandler(collection_eval_jobs, job_id)
+
+        if job_type == "validation":
+            moodle_ind = bool(int(p_job["moodle_ind"]))
             #
             user = collection_user.find_one({"username": user_id})
             save_verified_images = user["saveVerifiedImages"]
@@ -506,7 +468,7 @@ if __name__ == "__main__":
 
             moodle_zip_id_list = [moodle_zip_file_id]
             i = 1
-            for file_path in WORK_TMP_DIR.glob("moodle*.zip"):
+            for file_path in TMP_DIR.glob("moodle*.zip"):
                 moodle_zip_file_id = f"{folder}{job_id}_{i}.zip"
                 storage.move_to(str(file_path), moodle_zip_file_id)
                 moodle_zip_id_list.append(moodle_zip_file_id)
@@ -543,30 +505,62 @@ if __name__ == "__main__":
             print(f"Type '{job_type}' not handled.")
 
     try:
-        process()
+        while True:
+            # retrieve job
+            print("Retrieving job from redis")
+            job = r.lpop("job_queue")
+
+            # process job if any
+            if job:
+                print("Job:", job)
+                job = json.loads(job)
+                # create tmp work dir
+                job_id = job["job_id"]
+                WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
+                WORK_TMP_DIR.mkdir(exist_ok=True)
+                # process job
+                try:
+                    process(job, WORK_TMP_DIR)
+                except:
+                    pass
+                # clean
+                shutil.rmtree(WORK_TMP_DIR)
+
+            # check if any job is idle and dangling
+            print("Check idle running jobs")
+            # search idle jobs
+            max_alive = datetime.utcnow() - timedelta(seconds=120)
+            jobs = collection_eval_jobs.find({
+                "job_status": Job_Status.RUN.value,
+                "alive_time": {"$lt": max_alive},
+                "retry": {"$lt": MAX_RETRY + 1}
+            })
+            idle_jobs = False
+            for j in jobs:
+                print("Resubmit job", j["job_id"])
+                d_json = {
+                    "user_id": j["user_id"],
+                    "job_id": j["job_id"],
+                    "job_type": "execution"
+                }
+                r.lpush("job_queue", json.dumps(d_json))
+                idle_jobs = True
+
+            # continue if idle jobs
+            if idle_jobs:
+                continue
+
+            # check if any job is running. If yes, sleep, otherwise break
+            if collection_eval_jobs.find_one({
+                "job_status": Job_Status.RUN.value,
+                "retry": {"$lt": MAX_RETRY + 1}
+            }):
+                time.sleep(60)
+            else:
+                break
+
     except Exception as e:
         print(e)
-
-    # clean WORK_TMP_DIR
-    shutil.rmtree(WORK_TMP_DIR)
-
-    # check if any job is idle and dangling
-    print("Check idle running jobs")
-    # search one idle job
-    max_alive = datetime.utcnow() - timedelta(seconds=120)
-    jobs = collection_eval_jobs.find({
-        "job_status": Job_Status.RUN.value,
-        "alive_time": {"$lt": max_alive},
-        "retry": {"$lt": MAX_RETRY+1}
-    })
-    for j in jobs:
-        print("Resubmit job", j["job_id"])
-        d_json = {
-            "user_id": j["user_id"],
-            "job_id": j["job_id"],
-            "job_type": "execution"
-        }
-        r.lpush("job_queue", json.dumps(d_json))
 
     mongo_client.close()
     sio.disconnect()
