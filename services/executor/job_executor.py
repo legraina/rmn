@@ -523,6 +523,7 @@ if __name__ == "__main__":
 
         # check if any job is idle and dangling
         print("Check idle running jobs")
+        alive_times = {}
         while True:
             # search idle jobs
             max_alive = datetime.utcnow() - timedelta(seconds=120)
@@ -554,13 +555,24 @@ if __name__ == "__main__":
                 break
 
             # check if any job is running. If yes, sleep, otherwise break
-            if collection_eval_jobs.find_one({
+            jobs = collection_eval_jobs.find({
                 "job_status": Job_Status.RUN.value,
                 "retry": {"$lt": MAX_RETRY + 1}
-            }):
-                time.sleep(60)
-            else:
+            })
+            one_job_alive = False
+            for j in jobs:
+                job_id = j["job_id"]
+                alive_t = alive_times.get(job_id, datetime.utcnow())
+                # check if alive_time has increased, and thus job is alived
+                if j["alive_time"] > alive_t:
+                    one_job_alive = True
+                    break
+                alive_times[job_id] = j["alive_time"]
+            # if one job alive -> stop
+            if one_job_alive:
                 break
+            # otherwise, sleep
+            time.sleep(5)
 
     except Exception as e:
         print(e)
