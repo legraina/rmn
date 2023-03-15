@@ -41,7 +41,7 @@ import socketio
 import json
 import time
 import psutil
-from multiprocessing import Process
+from multiprocessing import Process, Queue
 
 from process_copy.config import re_mat, len_mat, known_mistmatch
 from process_copy.config import MoodleFields as MF
@@ -346,27 +346,28 @@ def grade_all(
 
     counter = 0
     batch = 1
+    matricules_data = {}
+    q_results = Queue()
     while counter < len(g_files):
         # grade file in a different process
-        g_args = (g_files, counter, grades_csv, max_grade,
+        g_args = (g_files[counter:], counter, grades_csv, max_grade,
                   job_id, user_id, sio, db,
-                  box_matricule, box, dpi, shape, max_RAM_GB)
+                  box_matricule, box, matricules_data,
+                  dpi, shape, max_RAM_GB, q_results)
         print("Run batch", batch)
 
-        def target_func(*args):
-            c = grade_files(*args)
-            exit(c)
-        p = Process(target=target_func, args=g_args)
+        p = Process(target=grade_files, args=g_args)
         p.start()
         p.join()
-        counter = p.exitcode
 
         # counter = grade_files(*g_args)
 
         # Getting usage of virtual_memory in GB ( 4th field)
+        counter, matricules_data = q_results.get()
         print(counter, "files have been processed.")
         print('RAM Used - end batch', batch, '(GB):', psutil.virtual_memory()[3] / 1000000000)
         batch += 1
+    q_results.close()
 
     sio.disconnect()
 
@@ -423,7 +424,7 @@ def grade_all(
 
 def grade_files(
         files,
-        initial_counter,
+        counter,
         grades_csv,
         max_grade,
         job_id,
@@ -432,9 +433,11 @@ def grade_files(
         db,
         box_matricule,
         box,
+        matricules_data={},
         dpi=300,
         shape=(8.5, 11),
-        max_RAM_GB=1000
+        max_RAM_GB=1000,
+        q_results=None
 ):
         # load csv
         grades_dfs, grades_names = load_csv(grades_csv)
@@ -451,16 +454,11 @@ def grade_files(
 
         handler = PreviewHandler()
 
-        # matricule
-        matricules_data = {}
-
-        counter = 0
         for file in files:
             # check if document has already been processed
             doc = db.get_document(job_id, counter)
             if doc['status'] != Document_Status.NOT_READY.value:
-                if counter >= initial_counter:
-                    print("Document", counter, "is ready with status", doc['status'])
+                print("Document", counter, "is ready with status", doc['status'])
                 m = doc["matricule"]
                 if m not in matricules_data:
                     matricules_data[m] = [file]
@@ -664,6 +662,9 @@ def grade_files(
         # store grades
         for i, f in enumerate(grades_csv):
             grades_dfs[i].to_csv(f)
+
+        if q_results:
+            q_results.put((counter, matricules_data))
 
         return counter
 
