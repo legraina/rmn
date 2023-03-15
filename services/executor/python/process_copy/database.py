@@ -101,22 +101,17 @@ class Database:
 
     def update_job_status_to_run(self, job_id, students_list):
         # try to change job status if first try
-        r = self.mongo_database["eval_jobs"].update_one(
-            {"job_id": job_id, "job_status": Job_Status.QUEUED.value},
-            {"$set": {"job_status": Job_Status.RUN.value,
-                      "retry": 0,
-                      "alive_time": datetime.utcnow(),
-                      "students_list": students_list,
-                      "max_questions": 1}
-             }
-        )
-        if r.matched_count > 0:
-            return True
-        # otherwise, just update alive timestamp
         self.mongo_database["eval_jobs"].update_one(
             {"job_id": job_id},
-            {"$set": {"alive_time": datetime.utcnow()}})
-        return False
+            {
+                "$set": {
+                    "job_status": Job_Status.RUN.value,
+                    "alive_time": datetime.utcnow(),
+                    "students_list": students_list
+                }
+            }
+        )
+        return self.mongo_database["eval_jobs"].find_one({"job_id": job_id})
 
     def save_preview_image(self, src, job_id, document_index):
         filename = f"documents/{job_id}/{document_index}.png"

@@ -375,12 +375,12 @@ if __name__ == "__main__":
             # Query job params
             print("Querying job details from Database...")
             job_params = collection_eval_jobs.find_one({"job_id": job_id})
-            print(job_params)
 
             if job_params is None:
                 print("No params found!")
-                mongo_client.close()
-                exit()
+                return
+
+            print(job_params)
 
             # Save notes.csv file to local
             storage.copy_from(job_params["notes_file_id"], str(OUTPUT_FOLDER.joinpath("notes.csv")))
@@ -426,10 +426,6 @@ if __name__ == "__main__":
                 # check if should retry
                 retry = job_params.get("retry", 0)
                 if retry < MAX_RETRY:
-                    collection_eval_jobs.update_one(
-                        {"job_id": job_id},
-                        {"$inc": {"retry": 1}}
-                    )
                     raise e
 
                 # Error handling
@@ -505,29 +501,29 @@ if __name__ == "__main__":
             print(f"Type '{job_type}' not handled.")
 
     try:
+        # retrieve job
+        print("Retrieving job from redis")
+        job = r.lpop("job_queue")
+
+        # process job if any
+        if job:
+            print("Job:", job)
+            job = json.loads(job)
+            # create tmp work dir
+            job_id = job["job_id"]
+            WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
+            WORK_TMP_DIR.mkdir(exist_ok=True)
+            # process job
+            try:
+                process(job, WORK_TMP_DIR)
+            except:
+                pass
+            # clean
+            shutil.rmtree(WORK_TMP_DIR)
+
+        # check if any job is idle and dangling
+        print("Check idle running jobs")
         while True:
-            # retrieve job
-            print("Retrieving job from redis")
-            job = r.lpop("job_queue")
-
-            # process job if any
-            if job:
-                print("Job:", job)
-                job = json.loads(job)
-                # create tmp work dir
-                job_id = job["job_id"]
-                WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
-                WORK_TMP_DIR.mkdir(exist_ok=True)
-                # process job
-                try:
-                    process(job, WORK_TMP_DIR)
-                except:
-                    pass
-                # clean
-                shutil.rmtree(WORK_TMP_DIR)
-
-            # check if any job is idle and dangling
-            print("Check idle running jobs")
             # search idle jobs
             max_alive = datetime.utcnow() - timedelta(seconds=120)
             jobs = collection_eval_jobs.find({
@@ -535,20 +531,27 @@ if __name__ == "__main__":
                 "alive_time": {"$lt": max_alive},
                 "retry": {"$lt": MAX_RETRY + 1}
             })
+            # requeue idle jobs
             idle_jobs = False
             for j in jobs:
                 print("Resubmit job", j["job_id"])
-                d_json = {
-                    "user_id": j["user_id"],
-                    "job_id": j["job_id"],
-                    "job_type": "execution"
-                }
-                r.lpush("job_queue", json.dumps(d_json))
+                # change status to ensure that a job is not resubmitted several times
+                res = collection_eval_jobs.update_one(
+                    {"job_id": j["job_id"], "job_status": Job_Status.RUN.value},
+                    {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
+                )
+                if res.matched_count > 0:
+                    d_json = {
+                        "user_id": j["user_id"],
+                        "job_id": j["job_id"],
+                        "job_type": "execution"
+                    }
+                    r.lpush("job_queue", json.dumps(d_json))
                 idle_jobs = True
 
             # continue if idle jobs
             if idle_jobs:
-                continue
+                break
 
             # check if any job is running. If yes, sleep, otherwise break
             if collection_eval_jobs.find_one({
@@ -561,6 +564,8 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(e)
+
+    print("Job end.")
 
     mongo_client.close()
     sio.disconnect()

@@ -303,7 +303,8 @@ def grade_all(
     names_mat_json = names_mat_df.to_json(orient="records")
 
     # Update job status
-    new_job = db.update_job_status_to_run(job_id, names_mat_json)
+    job = db.update_job_status_to_run(job_id, names_mat_json)
+    new_job = (job["retry"] == 0)
     if new_job:
         print("New job:", job_id)
         sio.emit(
