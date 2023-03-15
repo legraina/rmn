@@ -42,6 +42,7 @@ export class TaskVerificationComponent implements OnInit {
   currentPredictions: Map<string, number>;
   currentStatus: string;
   currentMatriculeSelection: string;
+  currentMatriculeWarning: string;
 
   colorChosen: string;
 
@@ -239,19 +240,19 @@ export class TaskVerificationComponent implements OnInit {
 
 
   getCurrentMatricule() {
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy && exam["status"] !== "NOT_READY") {
-        this.currentMatricule = exam["matricule"];
-        const matriculeRow = this.matriculeList.find(
-          x => x['matricule'] === String(this.currentMatricule)
-        );
-        if (matriculeRow) {
-          this.currentMatriculeSelection = matriculeRow['identifiant'];
-        } else {
-          this.currentMatriculeSelection = undefined;
-        }
+    let exam = this.examsList[this.currentIndex()];
+    if (exam["status"] !== "NOT_READY") {
+      this.currentMatricule = exam["matricule"];
+      this.getDuplicatedMatricule();
+      const matriculeRow = this.matriculeList.find(
+        x => x['matricule'] === String(this.currentMatricule)
+      );
+      if (matriculeRow) {
+        this.currentMatriculeSelection = matriculeRow['identifiant'];
+      } else {
+        this.currentMatriculeSelection = undefined;
       }
-    });
+    }
   }
 
   getCurrentTotal() {
@@ -402,6 +403,37 @@ export class TaskVerificationComponent implements OnInit {
     let exam = this.examsList[this.currentIndex()];
     exam["total"] = this.currentTotal;
     exam["matricule"] = String(this.currentMatricule);
+    this.getDuplicatedMatricule();
+  }
+
+  getDuplicatedMatricule(): void {
+    let duplicatedList: Array<number> = [];
+    let mat = String(this.currentMatricule);
+    this.examsList.forEach((exam: any) => {
+      if (exam["matricule"] === mat) {
+        duplicatedList.push(exam["document_index"]);
+      }
+    });
+    this.currentMatriculeWarning = undefined;
+    if (duplicatedList.length > 1) {
+      let warning = "";
+      let len = duplicatedList.length;
+      if (len > 3) {
+        len = 3;
+      }
+      for (let i = 0; i < len; i++) {
+        if (i > 0) {
+          warning += ", ";
+        }
+        warning += duplicatedList[i];
+      }
+      if (len < duplicatedList.length - 1) {
+        warning += "...";
+      } else if (len === duplicatedList.length - 1) {
+        warning += " et " + duplicatedList[len];
+      }
+      this.currentMatriculeWarning = warning;
+    }
   }
 
   updateTotal(predictionKey, predictionValue): void {

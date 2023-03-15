@@ -1,4 +1,4 @@
-<div class="page-count" *ngIf="!this.pictureLoading || !this.disabledValidationcontainer"> 
+<div class="page-count" *ngIf="!this.pictureLoading || !this.disabledValidationcontainer">
     {{this.currentCopy}} / {{this.examsList.length}}
 </div>
 <div class="task-verification-container">
@@ -13,7 +13,7 @@
                     (click)="changeCurrentCopy(exam.document_index, exam.status)">
                     <div class="disabled-copy" *ngIf="exam.status == 'NOT_READY'">
                         <strong>{{exam.document_index}}</strong>
-                    </div> 
+                    </div>
                     <div [ngClass]="exam.document_index == this.currentCopy ? 'validated-copy chosen-copy' : 'validated-copy'"
                         *ngIf="exam.status == 'VALIDATED'">
                         <strong>{{exam.document_index}}</strong>
@@ -30,7 +30,7 @@
             </div>
             <div class="validate-job-container">
                 <button class="validate-job-button" mat-flat-button (click)="validateJob()"
-                [disabled]="this.disabledValidationButton">FINALISER</button> 
+                [disabled]="this.disabledValidationButton">FINALISER</button>
             </div>
         </div>
         <div class="validation-container">
@@ -54,6 +54,9 @@
                                 [disabled]="this.validating">
                             </ng-select>
                         </div>
+                        <div *ngIf="this.currentMatriculeWarning" class="alert">
+                          Matricule utilisé par plusieurs copies: {{this.currentMatriculeWarning}}.
+                        </div>
                     </div>
                     <div class="sub-check-container"
                         *ngFor="let prediction of this.currentPredictions | keyvalue : sortNull; trackBy: trackByIndex;">
@@ -74,15 +77,15 @@
                     </div>
                 </div>
                 <div class="validate-container">
-                    <!-- 
-                       <button class="validate-button" 
+                    <!--
+                       <button class="validate-button"
                                 (click)="validateCurrentCopy()" [disabled]="this.validating">
-                            <mat-icon>done_outline</mat-icon> 
-                        </button> 
+                            <mat-icon>done_outline</mat-icon>
+                        </button>
                     -->
-                    <button [ngClass]="this.colorChosen == 'red' ? 'validate-button red' : 'validate-button ' + (this.colorChosen == 'blue' ? 'validate-button blue' : 'validate-button ' + (this.colorChosen == 'green' ? 'validate-button green' : 'validate-button'))" 
+                    <button [ngClass]="this.colorChosen == 'red' ? 'validate-button red' : 'validate-button ' + (this.colorChosen == 'blue' ? 'validate-button blue' : 'validate-button ' + (this.colorChosen == 'green' ? 'validate-button green' : 'validate-button'))"
                             (click)="validateCurrentCopy()" [disabled]="this.validating">
-                        <mat-icon>done_outline</mat-icon> 
+                        <mat-icon>done_outline</mat-icon>
                     </button>
                 </div>
             </div>

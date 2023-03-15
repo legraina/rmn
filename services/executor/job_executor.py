@@ -522,9 +522,9 @@ if __name__ == "__main__":
             shutil.rmtree(WORK_TMP_DIR)
 
         # check if any job is idle and dangling
-        print("Check idle running jobs")
         alive_times = {}
         while True:
+            print("Check idle running jobs")
             # search idle jobs
             max_alive = datetime.utcnow() - timedelta(seconds=120)
             jobs = collection_eval_jobs.find({
@@ -555,6 +555,7 @@ if __name__ == "__main__":
                 break
 
             # check if any job is running. If yes, sleep, otherwise break
+            print("Check alive running jobs")
             jobs = collection_eval_jobs.find({
                 "job_status": Job_Status.RUN.value,
                 "retry": {"$lt": MAX_RETRY + 1}
