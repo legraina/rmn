@@ -250,20 +250,6 @@ if __name__ == "__main__":
                             },
                         )
 
-                        sio.emit(
-                            "document_ready",
-                            json.dumps(
-                                {
-                                    "job_id": job_id,
-                                    "user_id": user_id,
-                                    "document_index": counter,
-                                    "execution_time": exec_time,
-                                    "status": Document_Status.READY.value,
-                                    "n_total_doc": n_total_doc,
-                                }
-                            ),
-                        )
-
                 #
                 if moodle_ind:
                     shutil.make_archive(
