@@ -410,27 +410,25 @@ def get_jobs():
     user_id = str(request_form["user_id"])
 
     # Get all jobs from DB
-    jobs = collection.find({"user_id": user_id})
+    jobs = [j for j in collection.find({"user_id": user_id})]
 
     #
     resp = [
         {
-            "user_id": job["user_id"],
             "job_id": job["job_id"],
             "template_id": job["template_id"],
             "queued_time": str(job["queued_time"]),
             "job_status": job["job_status"],
             "job_name": job["job_name"],
-            "template_name": job["template_name"],
-            "alive_time": job["alive_time"]
+            "template_name": job["template_name"]
         }
         for job in jobs
     ]
 
     # wake up workers in case some jobs died
     max_alive = datetime.utcnow() - timedelta(seconds=120)
-    for job in resp:
-        if job["alive_time"] < max_alive and job["job_status"] == Job_Status.RUN.value:
+    for job in jobs:
+        if job["job_status"] == Job_Status.RUN.value and job["alive_time"] < max_alive:
             res = collection.update_one(
                 {"job_id": job["job_id"], "job_status": Job_Status.RUN.value},
                 {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}

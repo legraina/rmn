@@ -429,15 +429,15 @@ export class TaskVerificationComponent implements OnInit {
 
   updateTotal(predictionKey, predictionValue): void {
     this.currentPredictions[predictionKey] = predictionValue;
+    this.currentTotal = this.getTotal();
+  }
 
+  getTotal(): number {
     let sum = 0;
-
     for (const prediction of Object.keys(this.currentPredictions)) {
       sum += this.currentPredictions[prediction];
     }
-
-    this.currentTotal = +sum.toFixed(2);
-
+    return sum;
   }
 
   trackByIndex(index, _): number {

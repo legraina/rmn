@@ -69,10 +69,13 @@
                         </div>
                     </div>
                     <div class="sub-check-container">
-                        <h3>Totale</h3>
+                        <h3>Total</h3>
                         <div class="value-input-div">
                             <input type="number" id="total" [(ngModel)]="this.currentTotal" step=any
                                 [disabled]="this.validating">
+                        </div>
+                        <div *ngIf="this.currentTotal!==this.getTotal()" class="alert">
+                          La somme et le total sont différents.
                         </div>
                     </div>
                 </div>
