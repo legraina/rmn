@@ -57,22 +57,65 @@ r = redis.Redis(host=redis_host, port=6379, db=0)
 storage = Storage()
 
 
+def check_token(form, role=None):
+    # check if token provided
+    if "token" not in form:
+        return Response(
+            response=json.dumps({"response": f"Error: token not provided."}),
+            status=400,
+        )
+    # check if token valid
+    db = mongo_client["RMN"]
+    token = form['token']
+    if not UserService.verify_token(token, db, role):
+        return Response(
+            response=json.dumps({"response": f"Error: token not valid. Please login."}),
+            status=400,
+        )
+    return None
+
+
 def verify_token(role=None):
     def _verify_token(f):
         @wraps(f)
         def __verify_token(*args, **kwargs):
-            # check if token provided
-            if "token" not in request.form:
+            # check if token valid
+            resp = check_token(request.form, role)
+            if resp:
+                return resp
+            return f()
+        return __verify_token
+    return _verify_token
+
+
+def verify_share_token():
+    def _verify_token(f):
+        @wraps(f)
+        def __verify_token(*args, **kwargs):
+            # check if token valid
+            resp = check_token(request.form)
+            if resp is None:
+                return f()
+            # check if any token share token provided
+            if "share_token" not in request.form:
                 return Response(
                     response=json.dumps({"response": f"Error: token not provided."}),
                     status=400,
                 )
+            # check if any token share token provided
+            if "job_id" not in request.form:
+                return Response(
+                    response=json.dumps({"response": f"Error: job_id not provided."}),
+                    status=400,
+                )
             # check if token valid
             db = mongo_client["RMN"]
-            token = request.form['token']
-            if not UserService.verify_token(token, db, role):
+            job_id = request.form["job_id"]
+            token = request.form["share_token"]
+            job = db["eval_jobs"].find_one({"job_id": job_id, "share_token": token})
+            if not job:
                 return Response(
-                    response=json.dumps({"response": f"Error: token not valid. Please login."}),
+                    response=json.dumps({"response": f"Error: token not valid."}),
                     status=400,
                 )
             return f()
@@ -210,7 +253,8 @@ def evaluate():
         "max_questions": 1,
         "notes_file_id": notes_file_id,
         "zip_file_id": zip_file_id,
-        "students_list": []
+        "students_list": [],
+        "groups": []
     }
 
     try:
@@ -448,7 +492,7 @@ def get_jobs():
 
 @app.route("/job", methods=["POST"])
 @cross_origin()
-@verify_token()
+@verify_share_token()
 def get_job():
     # Define db and collection used
     db = mongo_client["RMN"]
@@ -481,6 +525,82 @@ def get_job():
         "students_list": job["students_list"]
     }
     return Response(response=json.dumps({"response": resp}), status=200)
+
+
+@app.route("/job/share", methods=["POST"])
+@cross_origin()
+@verify_token()
+def share_job():
+    # Define db and collection used
+    db = mongo_client["RMN"]
+    collection = db["eval_jobs"]
+
+    request_form = request.form
+    if "job_id" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: job_id not provided."}),
+            status=400
+        )
+    job_id = str(request_form["job_id"])
+
+    host = request.headers.get('Host')
+    if not host:
+        return Response(
+            response=json.dumps({"response": f"Error: Host is not defined in the headers."}),
+            status=400
+        )
+
+    # Get all jobs from DB
+    job = collection.find_one({"job_id": job_id})
+    if job is None:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} doesn't exist."}),
+            status=400
+        )
+
+    if "share_token" not in job:
+        token = str(uuid.uuid4())
+        collection.update_one(
+            {"job_id": job_id},
+            {"$set": {"share_token": token}})
+    else:
+        token = job["share_token"]
+
+    share_url = f"https://{host}/task-share/?job={job_id}&token={token}"
+
+    #
+    resp = {
+        "job_id": job["job_id"],
+        "share_url": share_url
+    }
+    return Response(response=json.dumps({"response": resp}), status=200)
+
+
+@app.route("/job/unshare", methods=["POST"])
+@cross_origin()
+@verify_token()
+def unshare_job():
+    # Define db and collection used
+    db = mongo_client["RMN"]
+    collection = db["eval_jobs"]
+
+    request_form = request.form
+    if "job_id" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: job_id not provided."}),
+            status=400
+        )
+    job_id = str(request_form["job_id"])
+
+    # Get all jobs from DB
+    res = collection.update_one({"job_id": job_id}, {"$unset": "share_token"})
+    if res.matched_count == 0:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} doesn't exist."}),
+            status=400
+        )
+
+    return Response(response=json.dumps({"response": "OK"}), status=200)
 
 
 @app.route("/file/download", methods=["POST"])
@@ -595,7 +715,7 @@ def get_info_zip():
 
 @app.route("/documents", methods=["POST"])
 @cross_origin()
-@verify_token()
+@verify_share_token()
 def get_documents():
     request_form = request.form
 
@@ -637,7 +757,7 @@ def get_documents():
 
 @app.route("/documents/update", methods=["POST"])
 @cross_origin()
-@verify_token()
+@verify_share_token()
 def update_document():
     request_form = request.form
 
@@ -711,7 +831,7 @@ def update_document():
 
 @app.route("/document/download", methods=["POST"])
 @cross_origin()
-@verify_token()
+@verify_share_token()
 def download_document():
     #
     request_form = request.form

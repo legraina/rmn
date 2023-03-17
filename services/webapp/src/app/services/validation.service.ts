@@ -17,7 +17,7 @@ export class ValidationService {
 
   async validateDocument(jobId, validatingCopy, predictions, registration, total, status) {
     const formdata: FormData = new FormData();
-    formdata.append('token', this.userService.token);
+    this.userService.addTokens(formdata);
     formdata.append('job_id', jobId);
     formdata.append('document_index', validatingCopy.toString());
     formdata.append('subquestion_predictions', JSON.stringify(predictions));

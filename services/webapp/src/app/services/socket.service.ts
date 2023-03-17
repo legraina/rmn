@@ -12,13 +12,13 @@ export class SocketService {
 
   constructor() { }
 
-  initSocket(user_id: string) {
+  join(id: string) {
     if(!this.socketInitiated) {
       this.socket = io(SOCKETIO_URL);
       this.socketInitiated = true;
-      this.socket.emit('connection')
-      this.socket.emit('join', user_id)
+      this.socket.emit('connection');
     }
+    this.socket.emit('join', id);
   }
 
   getSocket() {

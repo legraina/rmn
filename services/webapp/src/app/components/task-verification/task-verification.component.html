@@ -1,5 +1,5 @@
 <div class="page-count" *ngIf="!this.pictureLoading || !this.disabledValidationcontainer">
-    {{this.currentCopy}} / {{this.examsList.length}}
+    {{this.currentCopy}} / {{this.subExamsList.length}}
 </div>
 <div class="task-verification-container">
     <div class="header">
@@ -9,7 +9,7 @@
     <div class="background">
         <div class="files-container">
             <div class="files-list-container">
-                <div class="file-container" *ngFor="let exam of this.examsList"
+                <div class="file-container" *ngFor="let exam of this.subExamsList"
                     (click)="changeCurrentCopy(exam.document_index, exam.status)">
                     <div class="disabled-copy" *ngIf="exam.status == 'NOT_READY'">
                         <strong>{{exam.document_index}}</strong>
@@ -95,6 +95,6 @@
         </div>
     </div>
 </div>
-<button mat-button (click)="reroute()"class="back-button"><mat-icon>arrow_back_ios</mat-icon></button>
+<button mat-button *ngIf="this.loggued()" (click)="reroute()"class="back-button"><mat-icon>arrow_back_ios</mat-icon></button>
 <div id="overlay" *ngIf="this.validating"></div>
 <mat-spinner class="overlay-spinner" *ngIf="this.validating" color="accent" [diameter]="150"></mat-spinner>

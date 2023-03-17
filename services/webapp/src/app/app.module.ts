@@ -42,6 +42,7 @@ import { TemplateEditorComponent } from './components/template-editor/template-e
 import { DeleteTemplateDialogComponent } from './components/templates-page/delete-template-dialog/delete-template-dialog.component';
 import { PresentationPageComponent } from './components/presentation-page/presentation-page.component';
 import { UserGuideComponent } from './components/user-guide/user-guide.component';
+import { TaskShareDialogComponent } from "./components/tasks-history/task-share-dialog/task-share-dialog.component";
 
 
 @NgModule({
@@ -52,6 +53,7 @@ import { UserGuideComponent } from './components/user-guide/user-guide.component
     NewCorrectionComponent,
     TasksHistoryComponent,
     TaskFilesDialogComponent,
+    TaskShareDialogComponent,
     UserProfileComponent,
     ChangePasswordDialogComponent,
     CreateUserDialogComponent,
@@ -92,6 +94,6 @@ import { UserGuideComponent } from './components/user-guide/user-guide.component
   ],
   providers: [],
   bootstrap: [AppComponent],
-  entryComponents: [TaskFilesDialogComponent, ChangePasswordDialogComponent, CreateUserDialogComponent, ValidationWarningDialogComponent, NewTemplateDialogComponent, DeleteTemplateDialogComponent]
+  entryComponents: [TaskFilesDialogComponent, TaskShareDialogComponent, ChangePasswordDialogComponent, CreateUserDialogComponent, ValidationWarningDialogComponent, NewTemplateDialogComponent, DeleteTemplateDialogComponent]
 })
 export class AppModule { }

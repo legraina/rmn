@@ -4,6 +4,7 @@ import { Component, OnInit, ViewChild } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { TasksService } from 'src/app/services/tasks.service';
 import { TaskFilesDialogComponent } from './task-files-dialog/task-files-dialog.component';
+import { TaskShareDialogComponent } from "./task-share-dialog/task-share-dialog.component";
 import { NavigationStart, Router } from '@angular/router';
 import { MatTableDataSource } from '@angular/material/table'
 import { MatPaginator } from '@angular/material/paginator';
@@ -28,7 +29,7 @@ export class TasksHistoryComponent implements OnInit {
   color: ThemePalette = 'primary';
   mode: ProgressSpinnerMode = 'determinate';
   diameter = 60;
-  displayedColumns: string[] = ['job_name', 'template_name', 'queued_time', 'job_status', 'job_completion', 'job_estimation', 'job_deletion'];
+  displayedColumns: string[] = ['job_name', 'template_name', 'queued_time', 'job_status', 'job_completion', 'job_estimation', 'job_deletion', 'job_share'];
   dataSource: MatTableDataSource<any> = new MatTableDataSource<any>();
 
   @ViewChild(MatPaginator) paginator: MatPaginator;
@@ -58,8 +59,7 @@ export class TasksHistoryComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     // Assign the data to the data source for the table to render
     this.getTasks();
-    this.socketService.initSocket(this.userService.currentUsername)
-
+    this.socketService.join(this.userService.currentUsername)
     this.socketService.getSocket().on('jobs_status', async (params: any) => {
       let resp = JSON.parse(params)
       let job_id = resp.job_id;
@@ -95,27 +95,29 @@ export class TasksHistoryComponent implements OnInit {
       });
     });
 
+    // subscribe to all running jobs
+    this.tasksList.forEach(x => {
+      if (x.job_status == 'QUEUED' || x.job_status == 'RUN') {
+        this.socketService.join(x.job_id);
+      }
+    });
 
-    if (this.indicator_socket === false) {
-      this.socketService.getSocket().on('document_ready', async (params: any) => {
-        let resp = JSON.parse(params)
-        let job_id = resp.job_id;
-        let lastN = resp.document_index;
-        let lastExecTime = resp.execution_time;
-        let n_total_doc = resp.n_total_doc;
-        this.tasksList.forEach(x => {
-          if (x.job_id === job_id) {
-            x.job_estimation = Math.round((n_total_doc - lastN) * lastExecTime);
-            x.job_completion = Math.round((lastN / n_total_doc) * 100);
-          }
-        });
-        this.dataSource.data = this.tasksList;
+    this.socketService.getSocket().on('document_ready', async (params: any) => {
+      let resp = JSON.parse(params)
+      let job_id = resp.job_id;
+      let lastN = resp.document_index;
+      let lastExecTime = resp.execution_time;
+      let n_total_doc = resp.n_total_doc;
+      this.tasksList.forEach(x => {
+        if (x.job_id === job_id) {
+          x.job_estimation = Math.round((n_total_doc - lastN) * lastExecTime);
+          x.job_completion = Math.round((lastN / n_total_doc) * 100);
+        }
       });
+      this.dataSource.data = this.tasksList;
+    });
 
-      setInterval(this.decrementTime.bind(this), 1000);
-
-      this.indicator_socket = true;
-    }
+    setInterval(this.decrementTime.bind(this), 1000);
   }
 
   ngOnDestroy(): void {
@@ -213,6 +215,20 @@ export class TasksHistoryComponent implements OnInit {
       });
   }
 
+  shareJob(jobId: string, jobName: string): void {
+    let dialogRef = this.dialog.open(TaskShareDialogComponent, {
+      width: '30%',
+      height: '40%',
+      data: {taskId: jobId, taskName: jobName}
+    });
+    dialogRef.afterClosed().subscribe(async result => {
+      if (result !== true) {
+        const message = "Une erreur est intervenue lors du partage de la tâche !";
+        this.notificationService.showError(message, "Erreur!");
+      }
+    });
+  }
+
   getTaskInfo(task: any) {
     if (task.job_status === 'ARCHIVED') {
       this.openTaskFilesDialog(task.job_id);
@@ -222,10 +238,6 @@ export class TasksHistoryComponent implements OnInit {
       this.router.navigate(['/task-validation']);
     }
   }
-
-
-
-
 
   openTaskFilesDialog(jobId: string): void {
     const formdata: FormData = new FormData();
@@ -242,7 +254,6 @@ export class TasksHistoryComponent implements OnInit {
         })
 
       });
-
   }
 
   decrementTime() {

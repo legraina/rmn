@@ -67,7 +67,8 @@ class Database:
         matricule,
         time,
         n_total_doc,
-        max_nb_question
+        max_nb_question,
+        group
     ):
         # update alive time stamp
         self.mongo_database["eval_jobs"].update_one(
@@ -89,6 +90,7 @@ class Database:
                     "status": status.value,
                     "execution_time": time,
                     "n_total_doc": n_total_doc,
+                    "group": group
                 }
             },
         )

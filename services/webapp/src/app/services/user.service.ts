@@ -1,16 +1,17 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { CanActivate, CanActivateChild, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { SERVER_URL } from '../utils';
 
 
 @Injectable({
   providedIn: 'root'
 })
-export class UserService implements CanActivate {
+export class UserService implements CanActivate, CanActivateChild {
 
   currentUsername: string = "bob2";
   token: string;
+  shareToken: string;
   role: string;
   saveVerifiedImages: boolean = false;
   moodleStructureInd: boolean = false;
@@ -26,6 +27,15 @@ export class UserService implements CanActivate {
 
     let moodleInd = localStorage.getItem('moodleStructureInd')
     this.moodleStructureInd = (moodleInd && moodleInd != "undefined") ? JSON.parse(localStorage.getItem('moodleStructureInd')) : false
+  }
+
+  addTokens(form) {
+    if (this.token) {
+      form.append('token', this.token);
+    }
+    if (this.shareToken) {
+      form.append('share_token', this.shareToken);
+    }
   }
 
   login(username, password) {
@@ -72,8 +82,18 @@ export class UserService implements CanActivate {
     return this.http.put(url, formdata);
   }
 
+  loggued(): boolean {
+    return this.token != null;
+  }
+
   canActivate(route: ActivatedRouteSnapshot,
               state: RouterStateSnapshot): boolean {
-      return this.currentUsername != null;
+    return this.loggued();
+  }
+
+  canActivateChild(route: ActivatedRouteSnapshot,
+                   state: RouterStateSnapshot): boolean {
+    this.shareToken = route.queryParams['share_token'];
+    return this.loggued() || this.shareToken != null;
   }
 }

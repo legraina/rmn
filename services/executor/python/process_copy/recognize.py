@@ -45,7 +45,7 @@ from multiprocessing import Process, Queue
 
 from process_copy.config import re_mat, len_mat, known_mistmatch
 from process_copy.config import MoodleFields as MF
-from process_copy.mcc import get_name, load_csv
+from process_copy.mcc import get_name, load_csv, group_label
 from process_copy.preview import PreviewHandler
 from process_copy.database import Database
 from utils.utils import Document_Status, Job_Status
@@ -542,6 +542,12 @@ def grade_files(
                         + "%s: Matricule (%s) not found in csv files" % (filename, m)
                         + Style.RESET_ALL
                     )
+
+                group = ""
+                l_group = group_label(grades_dfs[i])
+                if l_group:
+                    group = grades_dfs[i].at[m, l_group]
+
                 # fill moodle csv file
                 if numbers and len(numbers) > 1:
                     max_nb_question = max(max_nb_question, len(numbers))
@@ -632,7 +638,8 @@ def grade_files(
                     m,
                     exec_time,
                     counter + 1,
-                    max_nb_question
+                    max_nb_question,
+                    group
                 )
 
                 sio.emit(

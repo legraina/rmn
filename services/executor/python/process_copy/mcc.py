@@ -49,6 +49,13 @@ def load_csv(grades_csv):
     return grades_dfs, grades_names
 
 
+def group_label(df):
+    group_df = df.filter(regex=MF.group)
+    if group_df.shape[1] == 1:
+        return group_df.columns[0]
+    return None
+
+
 def copy_file(file, dest):
     # extract folder and name if dest is not a folder
     old_name = None

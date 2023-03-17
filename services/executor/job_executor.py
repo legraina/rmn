@@ -5,6 +5,7 @@ from pathlib import Path
 from python.process_copy.parser import parse_run_args
 from python.process_copy.recognize import get_date
 from python.process_copy.config import MoodleFields as MF
+from python.process_copy.mcc import group_label
 from utils.utils import Job_Status, Document_Status
 from utils.storage import Storage
 from utils.stop_handler import StopHandler
@@ -113,10 +114,7 @@ if __name__ == "__main__":
             df = pd.read_csv(csv_file_path, index_col=MF.mat, dtype={MF.mat: str})
 
             # check if group or gr column is present
-            group_label = None
-            group_df = df.filter(regex='(?i)(gr|groupe?s?)$')
-            if group_df.shape[1] == 1:
-                group_label = group_df.columns[0]
+            l_group = group_label(df)
 
             #
             docs = collection.find({"job_id": job_id})
@@ -225,8 +223,8 @@ if __name__ == "__main__":
                             shutil.copy(str(file), str(m_dest))
 
                         copies_path = all_copies_folder_path
-                        if group_label:
-                            group = df.at[matricule, group_label]
+                        if l_group:
+                            group = df.at[matricule, l_group]
                             copies_path = copies_path.joinpath(str(group))
                             copies_path.mkdir(exist_ok=True)
                         dest = copies_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")

@@ -1,0 +1,16 @@
+<div class="dialog-container">
+    <div class="warning-text-container">
+        <p>Voici le lien pour partager la tâche {{this.data.taskName}}:</p>
+    </div>
+    <div class="value-input-div">
+      <input (click)="this.selectText($event)" type="text" [readonly]="true"
+             id="text-box" [(ngModel)]="this.url" [disabled]="true">
+    </div>
+    <div class="warning-text-container">
+        <p>{{this.url}}</p>
+    </div>
+    <div class="warning-buttons-container">
+        <button class="cancel-button" mat-flat-button (click)="unshare()">Annuler</button>
+        <button class="confirm-button" mat-flat-button (click)="close(true)">Partager</button>
+    </div>
+</div>
