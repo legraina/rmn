@@ -35,18 +35,21 @@ from keras.models import load_model
 from pdf2image import convert_from_path
 from PIL import Image
 from datetime import datetime
+from pathlib import Path
+import shutil
+import socketio
+import json
+import time
+import psutil
+from multiprocessing import Process, Queue
+
 from process_copy.config import re_mat, len_mat, known_mistmatch
 from process_copy.config import MoodleFields as MF
 from process_copy.mcc import get_name, load_csv
 from process_copy.preview import PreviewHandler
 from process_copy.database import Database
 from utils.utils import Document_Status, Job_Status
-import tempfile
-from pathlib import Path
-import shutil
-import socketio
-import json
-import time
+
 
 DIRPATH = Path(__file__).resolve().parent.joinpath("documents")
 
@@ -216,13 +219,10 @@ def convert_grade_box_config(list_grade_box):
 def grade_all2(
     paths,
     grades_csv,
-    box,
     box_matricule,
     job_id,
     user_id,
     template_id,
-    is_pdf_file,
-    id_box=None,
     dpi=300,
     shape=(8.5, 11),
 ):
@@ -235,42 +235,37 @@ def grade_all2(
         sio = socketio.Client()
         sio.connect(f"http://{socketio_host}:7000")
 
+        # get max RAM
+        max_RAM_GB = int(os.getenv("MAX_RAM_GB", "1000"))
+
         grade_all(
             paths,
             grades_csv,
-            box,
             box_matricule,
             job_id,
             user_id,
             template_id,
             sio,
-            is_pdf_file,
-            id_box,
             dpi,
             shape,
+            max_RAM_GB
         )
-    except Exception as e:
-        print(e)
+    finally:
         sio.disconnect()
-        raise
 
 
 def grade_all(
     paths,
     grades_csv,
-    box,
     box_matricule_default,
     job_id,
     user_id,
     template_id,
     sio,
-    is_pdf_file,
-    id_box=None,
     dpi=300,
     shape=(8.5, 11),
+    max_RAM_GB=1000
 ):
-    shape = (int(dpi * shape[0]), int(dpi * shape[1]))
-
     db = Database("RMN")
     box_list, box_matricule_list = db.get_template_info(template_id)
 
@@ -279,6 +274,7 @@ def grade_all(
         if box_matricule_list is not None
         else box_matricule_default
     )
+
     box = convert_grade_box_config(box_list)
     # load csv
     grades_dfs, grades_names = load_csv(grades_csv)
@@ -289,282 +285,91 @@ def grade_all(
         for idx, row in df.iterrows():
             try:
                 s = row[MF.max]
+                if pd.isna(s):
+                    continue
+                if isinstance(s, str):
+                    s = s.replace(",", ".")
+                    s = float(s)
             except:
                 continue
-            if pd.isna(s):
-                continue
-            if isinstance(s, str):
-                s = s.replace(",", ".")
-                try:
-                    s = float(s)
-                except:
-                    continue
             if max_grade is None or s < max_grade:
                 max_grade = s
 
-    # loading our CNN model
-    classifier = load_model("digit_recognizer.h5")
-
-    # matricule
-    matricules_data = {}
-    duplicates = set()
-    invalid = []
-
-    db = Database("RMN")
-    counter = 0
-
     # Create a list of matricule-name
-    # TODO: only 1 csv supported
-    names_df = grades_dfs[0][["Nom complet"]]
-    names_df["matricule"] = names_df.index
+    names_mat_df = pd.concat(grades_dfs).reset_index()[["Matricule", "Nom complet"]]
+    names_mat_df = names_mat_df.rename(columns={"Matricule": "matricule"})
+    names_mat_json = names_mat_df.to_json(orient="records")
 
-    names_mat_json = names_df.to_json(orient="records")
+    # Update job status
+    job = db.update_job_status_to_run(job_id, names_mat_json)
+    new_job = (job["retry"] == 0)
+    if new_job:
+        print("New job:", job_id)
+        sio.emit(
+            "jobs_status",
+            json.dumps(
+                {"job_id": job_id, "user_id": user_id, "status": Job_Status.RUN.value}
+            ),
+        )
 
     # Create DB entry for each pdf file
+    print("Retrieving files to grade and initializing entry in Mongo")
+    counter = 0
+    g_files = []
     for path in paths:
         for root, dirs, files in os.walk(path):
             for f in files:
-                if not f.endswith(".pdf") or f.startswith("."):
+                if "__MACOSX" in f or not f.endswith(".pdf") or f.startswith("."):
                     continue
-                db.insert_document(
-                    "job_documents",
-                    job_id,
-                    counter + 1,
-                    [],
-                    0,
-                    "",
-                    Document_Status.NOT_READY,
-                    "",
-                    names_mat_json,
-                    0,
-                    0,
-                    f,
-                )
+                file = os.path.join(root, f)
+                if not os.path.isfile(file):
+                    continue
+                g_files.append(file)
+                if new_job:
+                    db.insert_document(
+                        job_id,
+                        counter,
+                        [],
+                        0,
+                        "",
+                        Document_Status.NOT_READY,
+                        "",
+                        0,
+                        0,
+                        f,
+                    )
                 counter += 1
-
-    # Update job status
-    db.update_job_status("eval_jobs", job_id, Job_Status.RUN)
-
-    sio.emit(
-        "jobs_status",
-        json.dumps(
-            {"job_id": job_id, "user_id": user_id, "status": Job_Status.RUN.value}
-        ),
-    )
-
-    # grade files
-    grades_data = []
-    dt = get_date()
-    trim = box["trim"] if "trim" in box else None
-    counter2 = 0
-    max_nb_question = 1
-
-    handler = PreviewHandler()
 
     if not os.path.exists(DIRPATH):
         os.makedirs(DIRPATH)
 
-    file_index = -1
-    for path in paths:
-        for root, dirs, files in os.walk(path):
-            for f in files:
-                if "__MACOSX" in f:
-                    continue
+    counter = 0
+    batch = 1
+    matricules_data = {}
+    q_results = Queue()
+    while counter < len(g_files):
+        # grade file in a different process
+        g_args = (g_files[counter:], counter, grades_csv, max_grade,
+                  job_id, user_id, db,
+                  box_matricule, box, matricules_data,
+                  dpi, shape, max_RAM_GB, q_results)
+        print("Run batch", batch)
 
-                if not f.endswith(".pdf") or f.startswith("."):
-                    continue
+        p = Process(target=grade_files, args=g_args)
+        p.start()
+        p.join()
 
-                # Start timer
-                start_time = time.time()
+        # counter = grade_files(*g_args)
 
-                file_index += 1
-
-                # search matricule in filename
-                m = re.search(re_mat, f)
-                file = os.path.join(root, f)
-
-                # search matricule in forlder name
-                # use folder name: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
-                if not m:
-                    par_dir = root.rsplit('/', 1)[-1]
-                    dir_split = par_dir.split("_")
-                    if len(dir_split) > 3:
-                        m = re.search(re_mat, dir_split[2])
-
-                if not m:
-                    # Find matricule in pdf file
-                    print("Matricule wasn't found in " + f)
-                    grays = gray_images(file, shape=shape)
-                    if box_matricule is None:
-                        raise Exception
-                    m, id_box, id_group = find_matricule(
-                        grays,
-                        box_matricule["front"],
-                        box_matricule["regular"] if not is_pdf_file else None,
-                        classifier,
-                        grades_dfs,
-                        separate_box=box_matricule["separate_box"],
-                    )
-
-                    m = m if m else "NA"
-                    if m not in matricules_data:
-                        matricules_data[m] = []
-                        # if no valid matricule has been found
-                        if m != "NA" and grades_dfs and id_group is None:
-                            invalid.append(m)
-                    elif m != "NA":
-                        duplicates.add(m)
-                    matricules_data[m].append((id_box, file))
-                else:
-                    m = m.group()
-
-                # try to recognize each grade and verify the total
-
-                if os.path.isfile(file):
-                    grays = gray_images(file, [0], straighten=False, shape=shape)
-                    if grays is None:
-                        print(Fore.RED + "%s: No valid pdf" % f + Style.RESET_ALL)
-                        continue
-                    gray = grays[0]
-                    total_matched, numbers, grades, number_images = grade(
-                        gray,
-                        box["grade"],
-                        classifier=classifier,
-                        trim=trim,
-                        max_grade=max_grade,
-                    )
-
-                    # if len(numbers) <= 1:
-                    #     continue
-
-                    i, name = get_name(m, grades_dfs)
-                    if i < 0:
-                        print(
-                            Fore.RED
-                            + "%s: Matricule (%s) not found in csv files" % (f, m)
-                            + Style.RESET_ALL
-                        )
-                    # fill moodle csv file
-                    if numbers and len(numbers) > 1:
-                        max_nb_question = max(max_nb_question, len(numbers))
-                        print(numbers)
-
-                        db.save_unverified_number_images(
-                            job_id, file_index, number_images[:-1]
-                        )
-
-                        # fill csv for all the subquestion
-                        for index_grade, grade_number in enumerate(numbers[:-1]):
-                            col_name = f"{MF.question} {index_grade + 1}"
-
-                            if col_name not in grades_dfs[i].columns:
-                                # create new column: Question_{index_grade + 1}
-                                # Initialize to 0
-                                if not MF.grade in grades_dfs[i].columns:
-                                    grades_dfs[i][MF.grade] = None
-                                total_index = grades_dfs[i].columns.get_loc(MF.grade)
-                                grades_dfs[i].insert(total_index, col_name, 0)
-
-                            print("%s - %s: %.2f" % (f, col_name, grade_number))
-                            grades_dfs[i].at[m, col_name] = grade_number
-
-                        # Fill total grade in csv
-                        if pd.isna(grades_dfs[i].at[m, MF.grade]):
-                            print("%s - %s: %.2f" % (f, MF.grade, numbers[-1]))
-                            grades_dfs[i].at[m, MF.grade] = numbers[-1]
-                            grades_dfs[i].at[m, MF.mdate] = dt
-                        elif grades_dfs[i].at[m, MF.grade] != numbers[-1]:
-                            print(
-                                Fore.RED
-                                + "%s: there is already a grade (%.2f) different of %.2f"
-                                % (f, grades_dfs[i].at[m, MF.grade], numbers[-1])
-                                + Style.RESET_ALL
-                            )
-                        else:
-                            print("%s: found same grade %.2f" % (f, numbers[-1]))
-                    else:
-                        print(Fore.GREEN + "%s: No valid grade" % f + Style.RESET_ALL)
-                        grades_dfs[i].at[m, MF.mdate] = dt
-
-                    # Display in the summary the identity box if provided
-                    id_img = None
-
-                    grades_data.append(
-                        (m, i, file, grades, numbers, total_matched, id_img)
-                    )
-
-                    results = [
-                        (
-                            f"Matricule: {m}",
-                            False if (m in duplicates or m in invalid) else True,
-                        )
-                    ]
-
-                    # Check there was any grades existing
-                    if not numbers or len(numbers) < 1:
-                        numbers = [0] * max_nb_question
-
-                    results.extend(
-                        [
-                            (f"Question {i+1}: {n}", total_matched)
-                            for i, n in enumerate(numbers[:-1])
-                        ]
-                    )
-                    results.append((f"Totale: {numbers[-1]}", total_matched))
-                    src = handler.createDocumentPreview(file, DIRPATH, results)
-                    print(f"src: {src}")
-                    # DB update
-
-                    is_matricule_valid = m not in duplicates and m not in invalid
-
-                    image_id = db.save_preview_image(src, job_id, counter2)
-                    doc_status = (
-                        Document_Status.HIGH_ACCURACY
-                        if total_matched and is_matricule_valid
-                        else Document_Status.TO_VALIDATE
-                    )
-                    subquestions = {
-                        f"Question {index_sub + 1}": sub
-                        for index_sub, sub in enumerate(numbers[:-1])
-                    }
-
-                    exec_time = time.time() - start_time
-
-                    db.update_document(
-                        "job_documents",
-                        job_id,
-                        counter2 + 1,
-                        subquestions,
-                        numbers[-1],
-                        image_id,
-                        doc_status,
-                        m,
-                        exec_time,
-                        counter,
-                    )
-
-                    sio.emit(
-                        "document_ready",
-                        json.dumps(
-                            {
-                                "job_id": job_id,
-                                "user_id": user_id,
-                                "document_index": counter2 + 1,
-                                "execution_time": exec_time,
-                                "status": doc_status.value,
-                                "n_total_doc": counter,
-                            }
-                        ),
-                    )
-
-                    counter2 += 1
-
-    sio.disconnect()
-    # raise error if cannot detect any grades in any copies
-    if max_nb_question == 1:
-        print("WARNING: Only one grade box has been found.")
+        # Getting usage of virtual_memory in GB ( 4th field)
+        counter, matricules_data = q_results.get()
+        print(counter, "files have been processed.")
+        print('RAM Used - end batch', batch, '(GB):', psutil.virtual_memory()[3] / 1000000000)
+        batch += 1
+    q_results.close()
 
     # check the number of files that have benn dropped on moodle if any
+    print("Store grades in csv")
     n = 0
     for df in grades_dfs:
         for idx, row in df.iterrows():
@@ -576,17 +381,16 @@ def grade_all(
                 continue
             if s.startswith(MF.status_start_filter):
                 n += 1
-    if n > 0 and n != len(grades_data):
+    if n > 0 and n != counter:
         print(
             Fore.RED
             + "%d copies have been uploaded on moodle, but %d have been graded"
-            % (n, len(grades_data))
+            % (n, counter)
             + Style.RESET_ALL
         )
 
     # add summarry
-    sumarries = [[] for f in grades_csv]
-
+    # sumarries = [[] for f in grades_csv]
     # def add_summary(file, grades, mat, numbers, total_matched, id_group, id_img=None, initial_index=2):
     #     lsum = sumarries[id_group]
     #     # rename file
@@ -596,17 +400,12 @@ def grade_all(
     #     else:
     #         sumarry = create_summary(grades, mat, numbers, total_matched, name, dpi)
     #     lsum.append(sumarry)
-
     # handler.createSummary(DIRPATH, "notes_summary.pdf")
 
     shutil.rmtree(DIRPATH)
 
-    # write summary
+    # store grades
     for i, f in enumerate(grades_csv):
-        # pages = create_whole_summary(sumarries[i])
-        # gname = f.split(".")[0]
-        # save_pages(pages, gname + "_summary.pdf")
-        # store grades
         df = grades_dfs[i]
         # sort by status (Remis in first) then matricules (index)
         try:
@@ -618,6 +417,262 @@ def grade_all(
             sdf.to_csv(f)
         except:
             df.to_csv(f)
+
+
+def grade_files(
+        files,
+        counter,
+        grades_csv,
+        max_grade,
+        job_id,
+        user_id,
+        db,
+        box_matricule,
+        box,
+        matricules_data={},
+        dpi=300,
+        shape=(8.5, 11),
+        max_RAM_GB=1000,
+        q_results=None
+):
+        # load csv
+        grades_dfs, grades_names = load_csv(grades_csv)
+
+        # grade files
+        # grades_data = []
+        dt = get_date()
+        trim = box["trim"] if "trim" in box else None
+        max_nb_question = db.get_job_max_questions(job_id)
+
+        shape = (int(dpi * shape[0]), int(dpi * shape[1]))
+        # loading our CNN model
+        classifier = load_model("digit_recognizer.h5")
+
+        handler = PreviewHandler()
+
+        try:
+            # Create SocketIO connection
+            socketio_host = (
+                "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
+            )
+            sio = socketio.Client()
+            sio.connect(f"http://{socketio_host}:7000")
+
+            for file in files:
+                # check if document has already been processed
+                doc = db.get_document(job_id, counter)
+                if doc['status'] != Document_Status.NOT_READY.value:
+                    print("Document", counter, "is ready with status", doc['status'])
+                    m = doc["matricule"]
+                    if m not in matricules_data:
+                        matricules_data[m] = [file]
+                    else:
+                        matricules_data[m].append(file)
+                    counter += 1
+                    continue
+
+                # Start timer
+                start_time = time.time()
+
+                # search matricule in filename
+                filename = file.rsplit("/", 1)[-1]
+                m = re.search(re_mat, filename)
+                is_matricule_valid = True
+
+                # search matricule in forlder name
+                # use folder name: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
+                if not m:
+                    par_dir = file.rsplit('/', 2)[-2]
+                    dir_split = par_dir.split("_")
+                    if len(dir_split) > 3:
+                        m = re.search(re_mat, dir_split[2])
+
+                if not m:
+                    # Find matricule in pdf filename
+                    for s in file.split("_"):
+                        m = re.search(re_mat, s)
+                        if m:
+                            break
+
+                if not m:
+                    # Find matricule in pdf file
+                    print("Matricule wasn't found in " + filename)
+                    grays = gray_images(file, shape=shape)
+                    if box_matricule is None:
+                        raise Exception
+                    m, id_box, id_group = find_matricule(
+                        grays,
+                        box_matricule["front"],
+                        box_matricule.get("regular"),
+                        classifier,
+                        grades_dfs,
+                        separate_box=box_matricule["separate_box"],
+                    )
+
+                    m = m if m else "NA"
+                    if m not in matricules_data:
+                        matricules_data[m] = []
+                        # if no valid matricule has been found
+                        if m != "NA" and grades_dfs and id_group is None:
+                            is_matricule_valid = False
+                    elif m != "NA":
+                        is_matricule_valid = False
+                    matricules_data[m].append(file)
+                else:
+                    m = m.group()
+
+                # try to recognize each grade and verify the total
+                grays = gray_images(file, [0], straighten=False, shape=shape)
+                if grays is None:
+                    print(Fore.RED + "%s: No valid pdf" % filename + Style.RESET_ALL)
+                    continue
+                gray = grays[0]
+                total_matched, numbers, grades, number_images, boxes = grade(
+                    gray,
+                    box["grade"],
+                    classifier=classifier,
+                    trim=trim,
+                    max_grade=max_grade,
+                )
+
+                i, name = get_name(m, grades_dfs)
+                if i < 0:
+                    print(
+                        Fore.RED
+                        + "%s: Matricule (%s) not found in csv files" % (filename, m)
+                        + Style.RESET_ALL
+                    )
+                # fill moodle csv file
+                if numbers and len(numbers) > 1:
+                    max_nb_question = max(max_nb_question, len(numbers))
+                    print(numbers)
+
+                    db.save_unverified_number_images(
+                        job_id, counter, number_images[:-1]
+                    )
+                    number_images.clear()  # delete numbers picture
+
+                    # fill csv for all the subquestion
+                    for index_grade, grade_number in enumerate(numbers[:-1]):
+                        col_name = f"{MF.question} {index_grade + 1}"
+
+                        if col_name not in grades_dfs[i].columns:
+                            # create new column: Question_{index_grade + 1}
+                            # Initialize to 0
+                            if MF.grade not in grades_dfs[i].columns:
+                                grades_dfs[i][MF.grade] = None
+                            total_index = grades_dfs[i].columns.get_loc(MF.grade)
+                            grades_dfs[i].insert(total_index, col_name, 0)
+
+                        print("%s - %s: %.2f" % (filename, col_name, grade_number))
+                        grades_dfs[i].at[m, col_name] = grade_number
+
+                    # Fill total grade in csv
+                    if pd.isna(grades_dfs[i].at[m, MF.grade]):
+                        print("%s - %s: %.2f" % (filename, MF.grade, numbers[-1]))
+                        grades_dfs[i].at[m, MF.grade] = numbers[-1]
+                        grades_dfs[i].at[m, MF.mdate] = dt
+                    elif grades_dfs[i].at[m, MF.grade] != numbers[-1]:
+                        print(
+                            Fore.RED
+                            + "%s: there is already a grade (%.2f) different of %.2f"
+                            % (filename, grades_dfs[i].at[m, MF.grade], numbers[-1])
+                            + Style.RESET_ALL
+                        )
+                        numbers[-1] = grades_dfs[i].at[m, MF.grade]
+                    else:
+                        print("%s: found same grade %.2f" % (filename, numbers[-1]))
+                else:
+                    print(Fore.GREEN + "%s: No valid grade" % filename + Style.RESET_ALL)
+                    grades_dfs[i].at[m, MF.mdate] = dt
+
+                # Display in the summary the identity box if provided
+                # id_img = None
+                # grades_data.append(
+                #     (m, i, file, grades, numbers, total_matched, id_img)
+                # )
+
+                results = [(f"Matricule: {m}", is_matricule_valid)]
+
+                # Check there were no grades existing
+                if not numbers or len(numbers) < 1:
+                    numbers = [0] * max_nb_question
+
+                results.extend(
+                    [
+                        (f"Question {i + 1}: {n}", total_matched)
+                        for i, n in enumerate(numbers[:-1])
+                    ]
+                )
+                results.append((f"Total: {numbers[-1]}", total_matched))
+                src = handler.createDocumentPreview(file, DIRPATH, results, dpi=dpi, box=box["grade"], boxes=boxes)
+                print(f"src: {src}")
+                # DB update
+
+                image_id = db.save_preview_image(src, job_id, counter)
+                doc_status = (
+                    Document_Status.HIGH_ACCURACY
+                    if total_matched and is_matricule_valid
+                    else Document_Status.TO_VALIDATE
+                )
+                subquestions = {
+                    f"Question {index_sub + 1}": sub
+                    for index_sub, sub in enumerate(numbers[:-1])
+                }
+
+                exec_time = time.time() - start_time
+
+                db.update_document(
+                    job_id,
+                    counter,
+                    subquestions,
+                    numbers[-1],
+                    image_id,
+                    doc_status,
+                    m,
+                    exec_time,
+                    counter + 1,
+                    max_nb_question
+                )
+
+                sio.emit(
+                    "document_ready",
+                    json.dumps(
+                        {
+                            "job_id": job_id,
+                            "user_id": user_id,
+                            "document_index": counter,
+                            "execution_time": exec_time,
+                            "status": doc_status.value,
+                            "n_total_doc": counter + 1,
+                        }
+                    ),
+                )
+
+                counter += 1
+
+                # Getting usage of virtual_memory in GB ( 4th field)
+                RAM_used = psutil.virtual_memory()[3] / 1000000000
+                print('RAM Used once grade found (GB):', RAM_used)
+
+                if RAM_used >= max_RAM_GB:
+                    print('RAM limit exceeded')
+                    break
+        finally:
+            sio.disconnect()
+
+        # raise error if cannot detect any grades in any copies
+        if max_nb_question == 1:
+            print("WARNING: Only one grade box has been found.")
+
+        # store grades
+        for i, f in enumerate(grades_csv):
+            grades_dfs[i].to_csv(f)
+
+        if q_results:
+            q_results.put((counter, matricules_data))
+
+        return counter
 
 
 def compare_all(paths, grades_csv, box, dpi=300, shape=(8.5, 11)):
@@ -791,7 +846,7 @@ def find_matricule(
     return None, id_box, None
 
 
-def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None):
+def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None, retry=0):
     cropped = fetch_box(gray, box)
     print(f"box: {box}")
     print(f"cropped: {cropped}")
@@ -804,7 +859,11 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
         (x, y, w, h) = cv2.boundingRect(b)
         if h <= 10 or w <= 10:
             print("An invalid box number has been found (too small or too thin)")
-            return False, [], cropped, number_images
+            if retry > 0:
+                print("Retry grading", retry)
+                box2 = (box[0]-.01, box[0]+.01, box[0]-.01, box[0]+.01)
+                return grade(gray, box2, classifier, add_border, trim, max_grade, retry-1)
+            return False, [], cropped, number_images, boxes
         box_img = cropped[y + 5 : y + h - 5, x + 5 : x + w - 5]
         # check if need to trim
         n_trim = None
@@ -823,7 +882,7 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
 
     if len(all_numbers) == 0:
         print("No valid number has been found")
-        return False, [], cropped, number_images
+        return False, [], cropped, number_images, boxes
 
     # find all combination that works
     combinations = [(0, [])]
@@ -844,14 +903,14 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
     for p, numbers in combinations:
         # if only one number, return it
         if len(numbers) <= 1:
-            return True, numbers, cropped, number_images
+            return True, numbers, cropped, number_images, boxes
         # check the sum
         total = sum(numbers[:-1])
         if max_grade is not None and numbers[-1] > max_grade:
             continue
         if total != numbers[-1]:
             continue
-        return True, numbers, cropped, number_images
+        return True, numbers, cropped, number_images, boxes
 
     # Has not been able to check the total -> give the best prediction
     expected_numbers = [n[0] for n in all_numbers[:-1]]
@@ -872,12 +931,13 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
             adjusted_total = total
         if total > max_grade and nt > 0:
             adjusted_total = nt
-        # if both are greater then max grade, both are false !
+        # if both are greater than max grade, both are false !
     return (
         False,
         [n for p, n in expected_numbers] + [adjusted_total],
         cropped,
         number_images,
+        boxes
     )
 
 
@@ -902,7 +962,9 @@ def test(gray_img, classifier=None, trim=None):
 
     if not all_digits:
         print("No valid number has been found")
-        return []
+        return [(1.0, 0)]
+
+    print("All digits found:", [d[1] for d in all_digits])
 
     # process all possible digits combinations
     return process_digits_combinations(all_digits, dot)
@@ -1017,6 +1079,7 @@ def extract_digit(cnt, gray, thresh, classifier, threshold=1e-2, border=7):
     # creating a mask
     mask = np.zeros(gray.shape, dtype="uint8")
     (x, y, w, h) = cv2.boundingRect(cnt)
+    print("bounding box: [", x, ",", x+w, "] x [", y, ",", y+h, "]")
 
     hull = cv2.convexHull(cnt)
     cv2.drawContours(mask, [hull], -1, 255, -1)
@@ -1066,22 +1129,22 @@ def process_digits_combinations(all_digits, dot):
     for (c, d) in all_digits:
         for (p, i) in d:
             # check if a 1 not in first position and after dot if any
-            if i == 1:
-                # check if neither first and last digit and not first digit after the dot if any
-                if 0 < j < len(all_digits) - 1 and (dot >= len(all_digits) or j > dot):
-                    # give a bonus to the truncated number as generally more probable
-                   trunc_combinations += [
-                       (cumul + j*p, digits)
-                       for (cumul, digits) in combinations
-                   ]
-            # add every possible combinations
-            c2 = [
-                (cumul + p, digits + [(c, i)])
-                for (cumul, digits) in combinations
-            ]
-            combinations = c2
+            # check if neither first and last digit and not first digit after the dot if any
+            if i == 1 and 0 < j < len(all_digits) - 1 and (dot >= len(all_digits) or j > dot):
+                # give a bonus to the truncated number as generally more probable
+               trunc_combinations += [
+                   (cumul + j*p, digits)
+                   for (cumul, digits) in combinations
+               ]
+        # add every possible combinations
+        combinations = [
+            (cumul + p, digits + [(c, i)])
+            for (p, i) in d
+            for (cumul, digits) in combinations
+        ]
         j += 1
     combinations += trunc_combinations
+    print("Combinations:", [(p, [i for (c, i) in d]) for (p, d) in combinations])
 
     # process all combinations: normalize probability and extract number
     numbers = []
@@ -1090,6 +1153,9 @@ def process_digits_combinations(all_digits, dot):
         number = extract_number(digits, dot, just_allowed_decimals)
         if number is not None:
             numbers.append((p / len(digits), number))
+
+    if not numbers:
+        return [(1.0, 0)]
 
     return sorted(numbers, reverse=True)
 
@@ -1109,6 +1175,8 @@ def extract_number(digits, dot, just_allowed_decimals=False):
         # try to correct decimals
         l = len(decimals)
         if l <= len(corrected_decimals):
+            print("Corrected decimals", decimals, "->", corrected_decimals[l - 1])
+            print("Digits", [d[1] for d in digits])
             decimals = corrected_decimals[l - 1]
         else:
             print(

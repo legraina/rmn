@@ -30,20 +30,24 @@ spec:
                 protocol: TCP
             resources:
               limits:
-                memory: 10G
+                memory: 5G
             volumeMounts:
               - mountPath: /mnt/storage
                 name: nfs-storage
             env:
               - name: STORAGE
                 value: /mnt/storage
+              - name: MAX_RETRY
+                value: "5"
+              - name: MAX_RAM_GB
+                value: "5"
             terminationMessagePolicy: FallbackToLogsOnError
         restartPolicy: Never
-    backoffLimit: 0
+    backoffLimit: 5
+    activeDeadlineSeconds: 14000  #  Specifies the duration in seconds relative to the startTime that the job may be active before the system tries to terminate it; value must be positive integer
   pollingInterval: 1
-  maxReplicaCount: 5
-  successfulJobsHistoryLimit: 2
-  failedJobsHistoryLimit: 2
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
   scalingStrategy:
     strategy: "default"
   triggers:

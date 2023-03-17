@@ -1,5 +1,4 @@
 from service.template_service import TemplateService
-from utils.box_converter import convert_box_to_list
 from service.user_service import UserService, Role
 from pymongo import MongoClient
 from flask import Flask, request, Response, json, send_file, after_this_request
@@ -8,7 +7,7 @@ from werkzeug.utils import secure_filename
 from pathlib import Path
 from utils.utils import Job_Status, Output_File, Document_Status
 from utils.storage import Storage
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
 from io import FileIO
 from PyPDF2 import PdfWriter, PdfReader
 from service.front_page_service import FrontPageHandler
@@ -58,7 +57,7 @@ r = redis.Redis(host=redis_host, port=6379, db=0)
 storage = Storage()
 
 
-def verify_token(role = None):
+def verify_token(role=None):
     def _verify_token(f):
         @wraps(f)
         def __verify_token(*args, **kwargs):
@@ -207,8 +206,11 @@ def evaluate():
         "template_name": template_name,
         "queued_time": datetime.utcnow(),
         "job_status": Job_Status.QUEUED.value,
+        "retry": 0,
+        "max_questions": 1,
         "notes_file_id": notes_file_id,
         "zip_file_id": zip_file_id,
+        "students_list": []
     }
 
     try:
@@ -230,9 +232,8 @@ def evaluate():
         zip_file = request.files.get("zip_file")
         zip_file_name = secure_filename(zip_file.filename)
 
-        is_pdf_file = str(zip_file_name).endswith(".pdf")
         # transform into zip file
-        if is_pdf_file:
+        if str(zip_file_name).endswith(".pdf"):
             reader = PdfReader(zip_file)
             folder_to_zip = TEMP_FOLDER.joinpath("folder_to_zip")
 
@@ -283,22 +284,20 @@ def evaluate():
     sio.disconnect()
 
     thread = Thread(target=evaluate_thread,
-    kwargs={
-        "job_id": job_id,
-        "notes_file_id": notes_file_id,
-        "zip_file_id": zip_file_id,
-        "job": job,
-        "user_id": user_id,
-        "zip_file_name": zip_file_name,
-        "notes_csv_file_name": notes_csv_file_name,
-        "is_pdf_file": is_pdf_file
-
-    })
+                    kwargs={
+                        "job_id": job_id,
+                        "notes_file_id": notes_file_id,
+                        "zip_file_id": zip_file_id,
+                        "job": job,
+                        "user_id": user_id,
+                        "zip_file_name": zip_file_name,
+                        "notes_csv_file_name": notes_csv_file_name
+                    })
     thread.start()
 
     return Response(response=json.dumps({"response": "OK"}), status=200)
 
-def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_name, notes_csv_file_name, is_pdf_file):
+def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_name, notes_csv_file_name):
     try:
         file_name = str(TEMP_FOLDER.joinpath(zip_file_name))
         storage.move_to(file_name, zip_file_id)
@@ -341,8 +340,7 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
     queue_object = {
         "job_type": "execution",
         "job_id": job["job_id"],
-        "user_id": job["user_id"],
-        "is_pdf_file": is_pdf_file
+        "user_id": job["user_id"]
     }
     r.rpush("job_queue", json.dumps(queue_object))
 
@@ -402,19 +400,17 @@ def get_jobs():
     # Define db and collection used
     db = mongo_client["RMN"]
     collection = db["eval_jobs"]
-    template_collection = db["template"]
 
     request_form = request.form
-    user_id = str(request_form["user_id"])
-
     if "user_id" not in request_form:
         return Response(
             response=json.dumps({"response": f"Error: user_id not provided."}),
             status=400,
         )
+    user_id = str(request_form["user_id"])
 
     # Get all jobs from DB
-    jobs = collection.find({"user_id": user_id})
+    jobs = [j for j in collection.find({"user_id": user_id})]
 
     #
     resp = [
@@ -424,12 +420,66 @@ def get_jobs():
             "queued_time": str(job["queued_time"]),
             "job_status": job["job_status"],
             "job_name": job["job_name"],
-            "template_name": job["template_name"],
+            "template_name": job["template_name"]
         }
         for job in jobs
     ]
 
+    # wake up workers in case some jobs died
+    max_alive = datetime.utcnow() - timedelta(seconds=120)
+    for job in jobs:
+        if job["job_status"] == Job_Status.RUN.value and job["alive_time"] < max_alive:
+            res = collection.update_one(
+                {"job_id": job["job_id"], "job_status": Job_Status.RUN.value},
+                {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
+            )
+            if res.matched_count > 0:
+                queue_object = {
+                    "job_type": "execution",
+                    "job_id": job["job_id"],
+                    "user_id": job["user_id"]
+                }
+                r.rpush("job_queue", json.dumps(queue_object))
+                break
+
     #
+    return Response(response=json.dumps({"response": resp}), status=200)
+
+
+@app.route("/job", methods=["POST"])
+@cross_origin()
+@verify_token()
+def get_job():
+    # Define db and collection used
+    db = mongo_client["RMN"]
+    collection = db["eval_jobs"]
+
+    request_form = request.form
+    if "job_id" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: job_id not provided."}),
+            status=400
+        )
+    job_id = str(request_form["job_id"])
+
+    # Get all jobs from DB
+    job = collection.find_one({"job_id": job_id})
+    if job is None:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} doesn't exist."}),
+            status=400
+        )
+
+    #
+    resp = {
+        "job_id": job["job_id"],
+        "template_id": job["template_id"],
+        "queued_time": str(job["queued_time"]),
+        "job_status": job["job_status"],
+        "job_name": job["job_name"],
+        "template_name": job["template_name"],
+        "students_list": job["students_list"]
+    }
     return Response(response=json.dumps({"response": resp}), status=200)
 
 
@@ -575,9 +625,8 @@ def get_documents():
             "matricule": doc["matricule"],
             "total": doc["total"],
             "status": doc["status"],
-            "students_list": doc["students_list"],
             "exec_time": doc["execution_time"],
-            "n_total_doc": count,
+            "n_total_doc": count
         }
         for doc in docs
     ]

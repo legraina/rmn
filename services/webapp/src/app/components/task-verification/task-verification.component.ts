@@ -33,13 +33,16 @@ export class TaskVerificationComponent implements OnInit {
 
   validating: boolean = false;
 
+  job: Map<string, any>;
 
+  initialCopyIndex: number;
   currentCopy: number;
   currentMatricule: number;
   currentTotal: number;
   currentPredictions: Map<string, number>;
   currentStatus: string;
   currentMatriculeSelection: string;
+  currentMatriculeWarning: string;
 
   colorChosen: string;
 
@@ -48,8 +51,10 @@ export class TaskVerificationComponent implements OnInit {
 
   async ngOnInit(): Promise<any> {
     this.socketService.initSocket(this.userService.currentUsername)
-    this.currentCopy = 1;
+    await this.getJob();
     await this.getDocuments();
+    this.initialCopyIndex = this.examsList[0].document_index;
+    this.currentCopy = this.initialCopyIndex;
     this.checkForAvailableCopies();
     this.loadCopyInCanvas();
     this.getMatriculeList();
@@ -72,7 +77,7 @@ export class TaskVerificationComponent implements OnInit {
 
       let resp = JSON.parse(params)
 
-      let index = resp.document_index - 1;
+      let index = resp.document_index - this.initialCopyIndex;
 
       this.examsList[index]["status"] = resp.status;
       await this.getDocuments()
@@ -82,7 +87,6 @@ export class TaskVerificationComponent implements OnInit {
 
       if (this.currentCopy === resp.document_index) {
         this.loadCopyInCanvas();
-        this.getMatriculeList();
         this.getCurrentMatricule();
         this.getCurrentTotal();
         this.getCurrentPredictions();
@@ -97,7 +101,6 @@ export class TaskVerificationComponent implements OnInit {
       const jobStatus = resp.status;
       console.log(this.examsList[0].job_id, jobId, this.examsList[0].job_id === jobId);
       if (this.examsList[0].job_id === jobId) {
-        console.log('donzo');
         this.disabledValidationButton = jobStatus !== 'VALIDATION';
       }
     });
@@ -120,6 +123,19 @@ export class TaskVerificationComponent implements OnInit {
     event.target.select();
   }
 
+  async getJob() {
+    const formdata: FormData = new FormData();
+    formdata.append('job_id', this.tasksService.getvalidatingTaskId());
+    formdata.append('token', this.userService.token);
+
+    try {
+      const promise = await this.http.post<any>(`${SERVER_URL}job`, formdata).toPromise();
+      this.job = promise['response'];
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
   async getDocuments() {
     const formdata: FormData = new FormData();
     formdata.append('job_id', this.tasksService.getvalidatingTaskId());
@@ -131,7 +147,6 @@ export class TaskVerificationComponent implements OnInit {
     } catch (error) {
       console.log(error);
     }
-
   }
 
 
@@ -143,11 +158,7 @@ export class TaskVerificationComponent implements OnInit {
 
     this.pictureLoading = true;
 
-    /*
-    MEEEEEEEEEEEEEEEEEDGE
-    */
-
-    if (this.examsList[this.currentCopy - 1]["status"] !== "NOT_READY") {
+    if (this.examsList[this.currentIndex()]["status"] !== "NOT_READY") {
       this.http.post(`${SERVER_URL}document/download`, formdata, { responseType: 'blob' }).subscribe(
         (data) => {
           let url = window.URL.createObjectURL(data);
@@ -176,9 +187,9 @@ export class TaskVerificationComponent implements OnInit {
       0, 0, canvas.width, canvas.height); // destination rectangle
   }
 
-  changeCurrentCopy(index, status) {
+  changeCurrentCopy(copyIndex, status) {
     if (status !== "NOT_READY") {
-      this.currentCopy = index;
+      this.currentCopy = copyIndex;
       this.checkForAvailableCopies();
       this.loadCopyInCanvas();
       this.getCurrentMatricule();
@@ -204,52 +215,44 @@ export class TaskVerificationComponent implements OnInit {
 
   checkForAvailableCopies() {
     let counter = 0;
-    let numberCopies = this.examsList.length
     this.examsList.forEach((exam: any) => {
       if (exam["status"] === "NOT_READY") {
         counter += 1;
       }
     });
 
-    if (counter === numberCopies && !this.disabledValidationcontainer) {
+    if (counter === this.examsList.length && !this.disabledValidationcontainer) {
       this.disabledValidationcontainer = true;
     }
 
-    if (this.examsList[this.currentCopy - 1]["status"] !== "NOT_READY") {
+    if (this.examsList[this.currentIndex()]["status"] !== "NOT_READY") {
       this.disabledValidationcontainer = false;
     }
   }
 
   getMatriculeList() {
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy) {
-
-        let tempList = JSON.parse(exam["students_list"])
-
-        tempList = tempList.map(x => {
-          x = { matricule: x['matricule'], nom: x['Nom complet'], identifiant: x['matricule'] + ' - ' + x["Nom complet"] }; return x;
-        })
-        this.matriculeList = tempList;
-      }
-    });
+    let tempList = JSON.parse(this.job["students_list"]);
+    tempList = tempList.map(x => {
+      x = { matricule: x['matricule'], nom: x['Nom complet'], identifiant: x['matricule'] + ' - ' + x["Nom complet"] }; return x;
+    })
+    this.matriculeList = tempList;
   }
 
 
   getCurrentMatricule() {
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy && exam["status"] !== "NOT_READY") {
-        this.currentMatricule = exam["matricule"];
-        const matriculeRow = this.matriculeList.find(
-          x => x['matricule'] === String(this.currentMatricule)
-        );
-        if (matriculeRow) {
-          this.currentMatriculeSelection = matriculeRow['identifiant'];
-        } else {
-          this.currentMatriculeSelection = undefined;
-        }
-
+    let exam = this.examsList[this.currentIndex()];
+    if (exam["status"] !== "NOT_READY") {
+      this.currentMatricule = exam["matricule"];
+      this.getDuplicatedMatricule();
+      const matriculeRow = this.matriculeList.find(
+        x => x['matricule'] === String(this.currentMatricule)
+      );
+      if (matriculeRow) {
+        this.currentMatriculeSelection = matriculeRow['identifiant'];
+      } else {
+        this.currentMatriculeSelection = undefined;
       }
-    });
+    }
   }
 
   getCurrentTotal() {
@@ -304,15 +307,10 @@ export class TaskVerificationComponent implements OnInit {
       return;
     }
     Object.keys(this.currentPredictions).forEach(key => {
-      var inputValue = (<HTMLInputElement>document.getElementById(key.replace(/\s/g, ''))).value;
+      let inputValue = (<HTMLInputElement>document.getElementById(key.replace(/\s/g, ''))).value;
       this.currentPredictions[key] = Number(inputValue);
     });
-
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy) {
-        exam["total"] = this.currentTotal;
-      }
-    });
+    this.examsList[this.currentIndex()]["total"] = this.currentTotal;
 
     let response = await this.validationService.validateDocument(
       this.tasksService.getvalidatingTaskId(),
@@ -324,9 +322,10 @@ export class TaskVerificationComponent implements OnInit {
 
     if (response === "OK") {
       this.setValidatedStatus();
-      if (this.currentCopy < this.examsList.length && !this.checkNextCopy(this.currentCopy + 1)) {
-        let newIndex = this.currentCopy + 1;
-        this.changeCurrentCopy(newIndex, this.examsList[newIndex -1].status);
+      let newCopy = this.currentCopy + 1;
+      let newIndex = this.currentIndex() + 1;
+      if (newIndex < this.examsList.length && !this.checkNextCopy(newCopy)) {
+        this.changeCurrentCopy(newCopy, this.examsList[newIndex].status);
       }
     }
   }
@@ -396,30 +395,57 @@ export class TaskVerificationComponent implements OnInit {
 
   changeMatricule(selection): void {
     this.currentMatricule = Number(selection.matricule);
+    let exam = this.examsList[this.currentIndex()];
+    exam["total"] = this.currentTotal;
+    exam["matricule"] = String(this.currentMatricule);
+    this.getDuplicatedMatricule();
+  }
 
+  getDuplicatedMatricule(): void {
+    // search for duplicated matricules
+    let mat = String(this.currentMatricule);
+    let counter = 0;
+    let warning = "";
     this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy) {
-        exam["total"] = this.currentTotal;
-        exam["matricule"] = String(this.currentMatricule);
+      if (exam["matricule"] === mat && exam["document_index"] !== this.currentCopy) {
+        if (counter < 3) {
+          if (counter > 0) {
+            warning += ", ";
+          }
+          warning += exam["document_index"];
+        } else if (counter == 3) {
+          warning += " ..";
+        }
+        counter += 1;
       }
     });
+    // update warning message for matricule
+    if (counter == 0) {
+      this.currentMatriculeWarning = undefined;
+    } else {
+      this.currentMatriculeWarning = warning;
+    }
   }
 
   updateTotal(predictionKey, predictionValue): void {
     this.currentPredictions[predictionKey] = predictionValue;
+    this.currentTotal = this.getTotal();
+  }
 
+  getTotal(): number {
     let sum = 0;
-
     for (const prediction of Object.keys(this.currentPredictions)) {
       sum += this.currentPredictions[prediction];
     }
-
-    this.currentTotal = +sum.toFixed(2);
-
+    return sum;
   }
 
   trackByIndex(index, _): number {
     return index;
+  }
+
+  currentIndex(): number {
+    return this.currentCopy - this.initialCopyIndex;
   }
 
   reroute() {
@@ -427,16 +453,16 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   previousCopy(): void {
-    if (this.currentCopy > 1) {
-      const tempCurrentCopy = this.currentCopy - 1;
-      this.changeCurrentCopy(this.currentCopy - 1, this.examsList[tempCurrentCopy - 1].status);
+    const tempIndex = this.currentIndex() - 1;
+    if (tempIndex >= 0) {
+      this.changeCurrentCopy(this.currentCopy - 1, this.examsList[tempIndex].status);
     }
   }
 
   nextCopy(): void {
-    if (this.currentCopy < this.examsList.length) {
-      const tempCurrentCopy = this.currentCopy + 1;
-      this.changeCurrentCopy(this.currentCopy + 1, this.examsList[tempCurrentCopy - 1].status);
+    const tempIndex = this.currentIndex() + 1;
+    if (tempIndex < this.examsList.length) {
+      this.changeCurrentCopy(this.currentCopy + 1, this.examsList[tempIndex].status);
     }
   }
 

@@ -1,11 +1,10 @@
-import uuid
 import configparser
 import os
 import shutil
+from datetime import datetime
 import cv2
 
 from pymongo import MongoClient
-from pathlib import Path
 from utils.utils import Document_Status, Job_Status
 from utils.storage import Storage, ROOT_DIR
 
@@ -19,14 +18,13 @@ URL = parser.get("MONGODB", "URL")
 
 
 class Database:
-    def __init__(self, db_name, storage_path = None):
+    def __init__(self, db_name, storage_path=None):
         self.mongo_client = MongoClient(URL)
         self.mongo_database = self.mongo_client[db_name]
         self.storage = Storage(storage_path)
 
     def insert_document(
         self,
-        collection_name,
         job_id,
         doc_index,
         subquestion_pred,
@@ -34,12 +32,11 @@ class Database:
         image_id,
         status,
         matricule,
-        students_list,
         time,
         n_total_doc,
         filename,
     ):
-        return self.mongo_database[collection_name].insert_one(
+        return self.mongo_database["job_documents"].insert_one(
             {
                 "job_id": job_id,
                 "document_index": doc_index,
@@ -48,16 +45,19 @@ class Database:
                 "total": total,
                 "image_id": image_id,
                 "status": status.value,
-                "students_list": students_list,
                 "execution_time": time,
                 "n_total_doc": n_total_doc,
                 "filename": filename,
             }
         )
 
+    def get_document(self, job_id, doc_index):
+        return self.mongo_database["job_documents"].find_one({
+            "job_id": job_id, "document_index": doc_index
+        })
+
     def update_document(
         self,
-        collection_name,
         job_id,
         doc_index,
         subquestion_pred,
@@ -67,8 +67,18 @@ class Database:
         matricule,
         time,
         n_total_doc,
+        max_nb_question
     ):
-        return self.mongo_database[collection_name].update_one(
+        # update alive time stamp
+        self.mongo_database["eval_jobs"].update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "alive_time": datetime.utcnow(),
+                "max_questions": max_nb_question
+            }}
+        )
+        # return updated doc
+        return self.mongo_database["job_documents"].update_one(
             {"job_id": job_id, "document_index": doc_index},
             {
                 "$set": {
@@ -83,11 +93,25 @@ class Database:
             },
         )
 
-    def update_job_status(self, collection_name, job_id, status):
-        return self.mongo_database[collection_name].update_one(
+    def get_job_max_questions(self, job_id):
+        doc = self.mongo_database["eval_jobs"].find_one({"job_id": job_id})
+        if doc:
+            return doc["max_questions"]
+        return 1
+
+    def update_job_status_to_run(self, job_id, students_list):
+        # try to change job status if first try
+        self.mongo_database["eval_jobs"].update_one(
             {"job_id": job_id},
-            {"$set": {"job_status": status.value}},
+            {
+                "$set": {
+                    "job_status": Job_Status.RUN.value,
+                    "alive_time": datetime.utcnow(),
+                    "students_list": students_list
+                }
+            }
         )
+        return self.mongo_database["eval_jobs"].find_one({"job_id": job_id})
 
     def save_preview_image(self, src, job_id, document_index):
         filename = f"documents/{job_id}/{document_index}.png"

@@ -3,6 +3,8 @@ import configparser
 from pymongo import MongoClient
 from pathlib import Path
 from python.process_copy.parser import parse_run_args
+from python.process_copy.recognize import get_date
+from python.process_copy.config import MoodleFields as MF
 from utils.utils import Job_Status, Document_Status
 from utils.storage import Storage
 from utils.stop_handler import StopHandler
@@ -16,12 +18,14 @@ import json
 import pandas as pd
 import uuid
 import time
+from datetime import datetime, timedelta
 
 
 ROOT_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
 parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
 parser.read(CONFIG_FILE)
+MAX_RETRY = int(os.getenv("MAX_RETRY", "5"))
 
 mongo_url = parser.get("MONGODB", "URL")
 redis_host = "redis" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
@@ -29,33 +33,28 @@ socketio_host = (
     "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
 )
 
+storage = Storage()
+
 
 def save_number_images(job_id, document_index, questions):
-    numbers = [n for n in questions.values()]
+    try:
+        numbers = [n for n in questions.values()]
 
-    for index, number in enumerate(numbers):
-        number = float(number)
-        if number.is_integer() and 0 <= int(number) <= 9:
-            try:
-                unverified_filename = f"unverified_numbers/{job_id}/{document_index}/{index}.png"
-                new_filename = f"numbers/{int(number)}/{uuid.uuid4()}.png"
-                storage.move_to(storage.abs_path(unverified_filename), new_filename)
-            except Exception as e:
-                print(e)
+        for index, number in enumerate(numbers):
+            number = float(number)
+            if number.is_integer() and 0 <= int(number) <= 9:
+                try:
+                    unverified_filename = f"unverified_numbers/{job_id}/{document_index}/{index}.png"
+                    new_filename = f"numbers/{int(number)}/{uuid.uuid4()}.png"
+                    storage.move_to(storage.abs_path(unverified_filename), new_filename)
+                except Exception as e:
+                    print(e)
+    except Exception as e:
+        print(e)
 
 
 if __name__ == "__main__":
-    print("Retrieving job from redis")
-    r = redis.Redis(host=redis_host, port=6379, db=0)
-    job = r.lpop("job_queue")
-
-    if not job:
-        print("No job! Exiting...")
-        exit()
-    job_object = json.loads(job)
-    print("Job:", job_object)
-
-    #
+    # Connect to Mongo
     print("Setting up MongoClient...")
     mongo_client = MongoClient(mongo_url)
 
@@ -69,32 +68,24 @@ if __name__ == "__main__":
     sio = socketio.Client()
     sio.connect(f"http://{socketio_host}:7000")
 
-    try:
-        job_id = job_object["job_id"]
-        user_id = job_object["user_id"]
-    except Exception as e:
-        print(e)
-        mongo_client.close()
-        sio.disconnect()
-        raise
+    # create redis connection
+    r = redis.Redis(host=redis_host, port=6379, db=0)
 
-    WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
-    WORK_TMP_DIR.mkdir(exist_ok=True)
-    MOODLE_ZIP = WORK_TMP_DIR.joinpath("moodle.zip")
-    MOODLE_FOLDER = WORK_TMP_DIR.joinpath("moodle")
-    OUTPUT_FOLDER = WORK_TMP_DIR.joinpath("output")
-    EXTRACT_FOLDER = WORK_TMP_DIR.joinpath("extract")
-    VALIDATE_FOLDER = WORK_TMP_DIR.joinpath("validate")
+    def process(p_job, TMP_DIR):
+        job_id = p_job["job_id"]
+        user_id = p_job["user_id"]
+        job_type = p_job["job_type"]
 
-    storage = Storage()
-    stopH = StopHandler(collection_eval_jobs, job_id)
+        MOODLE_ZIP = TMP_DIR.joinpath("moodle.zip")
+        MOODLE_FOLDER = TMP_DIR.joinpath("moodle")
+        OUTPUT_FOLDER = TMP_DIR.joinpath("output")
+        EXTRACT_FOLDER = TMP_DIR.joinpath("extract")
+        VALIDATE_FOLDER = TMP_DIR.joinpath("validate")
 
-    def process():
-        job_type = job_object["job_type"]
+        stopH = StopHandler(collection_eval_jobs, job_id)
+
         if job_type == "validation":
-            #
-            moodle_ind = bool(int(job_object["moodle_ind"]))
-
+            moodle_ind = bool(int(p_job["moodle_ind"]))
             #
             user = collection_user.find_one({"username": user_id})
             save_verified_images = user["saveVerifiedImages"]
@@ -114,12 +105,12 @@ if __name__ == "__main__":
             validated_copies_folder_path.mkdir(exist_ok=True)
 
             # Save file to local
-            file_path = str(VALIDATE_FOLDER.joinpath('notes.csv'))
-            storage.copy_from(notes_csv_file_id, file_path)
+            csv_file_path = str(VALIDATE_FOLDER.joinpath('notes.csv'))
+            storage.copy_from(notes_csv_file_id, csv_file_path)
             print("notes.csv file created")
 
             #
-            df = pd.read_csv(file_path, index_col="Matricule", dtype={"Matricule": str})
+            df = pd.read_csv(csv_file_path, index_col=MF.mat, dtype={MF.mat: str})
 
             # check if group or gr column is present
             group_label = None
@@ -132,14 +123,15 @@ if __name__ == "__main__":
 
             #
             print(f"Col: {df.columns}")
-
+            dt = get_date()
             for document_index, doc in enumerate(docs):
-                if str(doc["matricule"]) in df.index.values:
+                mat = str(doc["matricule"])
+                if mat in df.index.values:
                     for key in doc["subquestion_predictions"].keys():
-                        df.loc[str(doc["matricule"]), key] = doc["subquestion_predictions"][
-                            key
-                        ]
-                    df.loc[str(doc["matricule"]), "Note"] = doc["total"]
+                        df.loc[mat, key] = doc["subquestion_predictions"][key]
+                    df.loc[mat, MF.grade] = doc["total"]
+                    df.loc[mat, MF.mdate] = dt
+            df.to_csv(csv_file_path, mode="w+")
 
             #
             collection.update_many(
@@ -188,7 +180,7 @@ if __name__ == "__main__":
 
                         doc = collection.find_one({"job_id": job_id, "filename": str(f)})
 
-                        if not doc:
+                        if doc is None:
                             continue
 
                         doc_idx = doc["document_index"]
@@ -203,7 +195,7 @@ if __name__ == "__main__":
 
                         matricule = str(doc["matricule"])
                         try:
-                            nom_complet = df.at[matricule, "Nom complet"]
+                            nom_complet = df.at[matricule, MF.name]
                         except Exception as e:
                             print(e)
                             print("Matricule", matricule, "not found in csv.")
@@ -219,8 +211,7 @@ if __name__ == "__main__":
 
                         if moodle_ind:
                             # create folder
-                            identifiant = df.at[str(doc["matricule"]), "Identifiant"]
-                            matricule = str(doc["matricule"])
+                            identifiant = df.at[matricule, MF.id]
                             folder_name = f"{nom_complet}_{identifiant}_{matricule}_assignsubmission_file_"
                             print("folder name", folder_name)
                             m_folder = moodle_folder_path.joinpath(folder_name)
@@ -235,7 +226,7 @@ if __name__ == "__main__":
 
                         copies_path = all_copies_folder_path
                         if group_label:
-                            group = df.at[str(doc["matricule"]), group_label]
+                            group = df.at[matricule, group_label]
                             copies_path = copies_path.joinpath(str(group))
                             copies_path.mkdir(exist_ok=True)
                         dest = copies_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
@@ -257,20 +248,6 @@ if __name__ == "__main__":
                                     "status": Document_Status.READY.value,
                                 }
                             },
-                        )
-
-                        sio.emit(
-                            "document_ready",
-                            json.dumps(
-                                {
-                                    "job_id": job_id,
-                                    "user_id": user_id,
-                                    "document_index": counter,
-                                    "execution_time": exec_time,
-                                    "status": Document_Status.READY.value,
-                                    "n_total_doc": n_total_doc,
-                                }
-                            ),
                         )
 
                 #
@@ -308,16 +285,13 @@ if __name__ == "__main__":
             if moodle_ind:
                 zip_id_list += moodle_zip_id_list
 
-
-            df.to_csv(file_path, mode="w+")
-
             if stopH.stop():
                 print("Job has been deleted.")
                 return
 
             try:
                 n_csv = f"output_csv/{job_id}.csv"
-                storage.move_to(file_path, n_csv)
+                storage.move_to(csv_file_path, n_csv)
 
                 #
                 collection_output.update_one(
@@ -387,12 +361,12 @@ if __name__ == "__main__":
             # Query job params
             print("Querying job details from Database...")
             job_params = collection_eval_jobs.find_one({"job_id": job_id})
-            print(job_params)
 
-            if not job_params:
+            if job_params is None:
                 print("No params found!")
-                mongo_client.close()
-                exit()
+                return
+
+            print(job_params)
 
             # Save notes.csv file to local
             storage.copy_from(job_params["notes_file_id"], str(OUTPUT_FOLDER.joinpath("notes.csv")))
@@ -435,14 +409,15 @@ if __name__ == "__main__":
                     storage.remove(f"zips/{job_id}.zip")
                     return
 
+                # check if should retry
+                retry = job_params.get("retry", 0)
+                if retry < MAX_RETRY:
+                    raise e
+
                 # Error handling
                 collection_eval_jobs.update_one(
                     {"job_id": job_id},
-                    {
-                        "$set": {
-                            "job_status": Job_Status.ERROR.value,
-                        }
-                    },
+                    {"$set": {"job_status": Job_Status.ERROR.value}}
                 )
 
                 sio.emit(
@@ -475,7 +450,7 @@ if __name__ == "__main__":
 
             moodle_zip_id_list = [moodle_zip_file_id]
             i = 1
-            for file_path in WORK_TMP_DIR.glob("moodle*.zip"):
+            for file_path in TMP_DIR.glob("moodle*.zip"):
                 moodle_zip_file_id = f"{folder}{job_id}_{i}.zip"
                 storage.move_to(str(file_path), moodle_zip_file_id)
                 moodle_zip_id_list.append(moodle_zip_file_id)
@@ -512,12 +487,88 @@ if __name__ == "__main__":
             print(f"Type '{job_type}' not handled.")
 
     try:
-        process()
+        # retrieve job
+        print("Retrieving job from redis")
+        job = r.lpop("job_queue")
+
+        # process job if any
+        if job:
+            print("Job:", job)
+            job = json.loads(job)
+
+            # create tmp work dir
+            job_id = job["job_id"]
+            WORK_TMP_DIR = ROOT_DIR.joinpath(f"tmp_{job_id}")
+            WORK_TMP_DIR.mkdir(exist_ok=True)
+
+            # process job
+            try:
+                process(job, WORK_TMP_DIR)
+            except:
+                pass
+
+            # clean
+            shutil.rmtree(WORK_TMP_DIR)
+
+        # check if any job is idle and dangling
+        alive_times = {}
+        while True:
+            print("Check idle running jobs")
+            # search idle jobs
+            max_alive = datetime.utcnow() - timedelta(seconds=120)
+            jobs = collection_eval_jobs.find({
+                "job_status": Job_Status.RUN.value,
+                "alive_time": {"$lt": max_alive}
+            })
+            # requeue old idle jobs
+            old_idle_jobs = False
+            for j in jobs:
+                print("Resubmit job", j["job_id"])
+                # change status to ensure that a job is not resubmitted several times
+                res = collection_eval_jobs.update_one(
+                    {"job_id": j["job_id"], "job_status": Job_Status.RUN.value},
+                    {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
+                )
+                if res.matched_count > 0:
+                    d_json = {
+                        "user_id": j["user_id"],
+                        "job_id": j["job_id"],
+                        "job_type": "execution"
+                    }
+                    r.lpush("job_queue", json.dumps(d_json))
+                old_idle_jobs = True
+
+            # continue if idle jobs
+            if old_idle_jobs:
+                break
+
+            # check if all running jobs are idle. If yes, sleep, otherwise break
+            print("Check alive running jobs")
+            jobs = collection_eval_jobs.find({
+                "job_status": Job_Status.RUN.value
+            })
+            all_jobs_idle = False
+            for j in jobs:
+                job_id = j["job_id"]
+                alive_t = alive_times.get(job_id, datetime.utcnow())
+                # check if alive_time has increased, and thus job is alived
+                if j["alive_time"] > alive_t:
+                    all_jobs_idle = False
+                    break
+                all_jobs_idle = True
+                alive_times[job_id] = j["alive_time"]
+            # if one job alive -> stop
+            if not all_jobs_idle:
+                print("All jobs are not idle.")
+                break
+            # otherwise, sleep
+            print("Sleep before checking again running jobs.")
+            time.sleep(5)
+
     except Exception as e:
         print(e)
 
-    # clean WORK_TMP_DIR
-    shutil.rmtree(WORK_TMP_DIR)
+    print("Job end.")
 
     mongo_client.close()
     sio.disconnect()

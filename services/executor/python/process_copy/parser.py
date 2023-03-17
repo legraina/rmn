@@ -68,7 +68,6 @@ parser.add_argument('-j', '--job_id', type=str, help='Id of the job.')
 
 parser.add_argument('-u', '--user_id', type=str, help='Id of the user.')
 parser.add_argument('-v', '--template_id', type=str, help='Id of the template to use.')
-parser.add_argument('-pdf', '--is_pdf_file', type=str, help='True if the copies came from a single pdf file source')
 
 
 def check_path(path):
@@ -192,7 +191,7 @@ def run_args(args):
             if args.compare:
                 compare_all(args.path, args.grades, config.grade_box[args.grade])
             else:
-                grade_all2(args.path, args.grades, config.grade_box[args.grade], config.matricule_box["exam"], args.job_id, args.user_id, args.template_id, id_box=config.matricule_box.get(args.grade), is_pdf_file= args.is_pdf_file)
+                grade_all2(args.path, args.grades, config.matricule_box["exam"], args.job_id, args.user_id, args.template_id)
         except KeyError:
             raise KeyError("Grade configuration %s hasn't any configuration defined in config.py" % args.grade)
 

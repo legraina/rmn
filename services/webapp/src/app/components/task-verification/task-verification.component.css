@@ -298,6 +298,10 @@ hr.header-line {
     margin-right: 15%;
 }
 
+.alert {
+  color: red;
+}
+
 input[type=number] {
     width: 100%;
     padding: 12px 20px;
