@@ -6,11 +6,8 @@
       <input (click)="this.selectText($event)" type="text" [readonly]="true"
              id="text-box" [(ngModel)]="this.url" [disabled]="true">
     </div>
-    <div class="warning-text-container">
-        <p>{{this.url}}</p>
-    </div>
     <div class="warning-buttons-container">
-        <button class="cancel-button" mat-flat-button (click)="unshare()">Annuler</button>
         <button class="confirm-button" mat-flat-button (click)="close(true)">Partager</button>
+        <button class="cancel-button" mat-flat-button (click)="unshare()">Annuler</button>
     </div>
 </div>
