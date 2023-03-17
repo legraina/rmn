@@ -44,12 +44,11 @@ spec:
             terminationMessagePolicy: FallbackToLogsOnError
         restartPolicy: Never
     backoffLimit: 5
-    activeDeadlineSeconds: 14000  #  Specifies the duration in seconds relative to the startTime that the job may be active before the system tries to terminate it; value must be positive integer
   pollingInterval: 1
   successfulJobsHistoryLimit: 5
   failedJobsHistoryLimit: 5
   scalingStrategy:
-    strategy: "default"
+    strategy: "accurate"
   triggers:
   - type: redis
     metadata:
