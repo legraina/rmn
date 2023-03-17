@@ -5,9 +5,8 @@ import { ValidationService } from 'src/app/services/validation.service';
 import { SocketService } from 'src/app/services/socket.service';
 import { NotificationService } from 'src/app/services/notification.service';
 import { HttpClient } from '@angular/common/http';
-import { TaskFilesDialogComponent } from '../tasks-history/task-files-dialog/task-files-dialog.component';
 import { ValidationWarningDialogComponent } from './validation-warning-dialog/validation-warning-dialog.component';
-import { Router, ActivatedRouteSnapshot } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { UserService } from 'src/app/services/user.service';
 import { SERVER_URL } from 'src/app/utils';
 
@@ -25,7 +24,7 @@ export class TaskVerificationComponent implements OnInit {
     private http: HttpClient,
     public dialog: MatDialog,
     private router: Router,
-    private route: ActivatedRouteSnapshot,
+    private route: ActivatedRoute,
     private userService: UserService) { }
 
   subgroup: string;
@@ -53,8 +52,8 @@ export class TaskVerificationComponent implements OnInit {
   matriculeList: Array<any>;
 
   async ngOnInit(): Promise<any> {
-    this.tasksService.setvalidatingTaskId(this.route.queryParams['job']);
-    this.subgroup = this.route.queryParams['group'];
+    this.tasksService.setvalidatingTaskId(this.route.snapshot.queryParams['job']);
+    this.subgroup = this.route.snapshot.queryParams['group'];
     this.job = await this.tasksService.getTask();
     if (this.job && this.job["job_id"]) {
       await this.getDocuments();
@@ -319,24 +318,6 @@ export class TaskVerificationComponent implements OnInit {
       }
     }
   }
-
-
-  openTaskFilesDialog(jobId: string): void {
-    const formdata: FormData = new FormData();
-    formdata.append('user_id', this.userService.currentUsername);
-    formdata.append('token', this.userService.token);
-    formdata.append('job_id', jobId);
-    this.http.post<any>(`${SERVER_URL}job/batch/info`, formdata).subscribe(
-      (data) => {
-        let nbZipFile = data['response']
-        this.dialog.open(TaskFilesDialogComponent, {
-          width: '30%',
-          height: '60%',
-          data: { taskId: jobId, nbZipFile: nbZipFile }
-        });
-      });
-  }
-
 
   openwarningDialog(): void {
     let dialogRef = this.dialog.open(ValidationWarningDialogComponent, {

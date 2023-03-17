@@ -95,6 +95,6 @@ export class UserService implements CanActivate, CanActivateChild {
                    state: RouterStateSnapshot): boolean {
     console.log("Query params: ", route.queryParamMap);
     this.shareToken = route.queryParamMap.get('token');
-    return this.loggued();
+    return this.loggued() || this.shareToken;
   }
 }

@@ -566,7 +566,7 @@ def share_job():
     else:
         token = job["share_token"]
 
-    share_url = f"https://{host}/task-share/?job={job_id}&token={token}"
+    share_url = f"https://{host}/task-validation/?job={job_id}&token={token}"
 
     #
     resp = {
