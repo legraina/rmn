@@ -593,7 +593,7 @@ def unshare_job():
     job_id = str(request_form["job_id"])
 
     # Get all jobs from DB
-    res = collection.update_one({"job_id": job_id}, {"$unset": "share_token"})
+    res = collection.update_one({"job_id": job_id}, {"$unset": {"share_token": ""}})
     if res.matched_count == 0:
         return Response(
             response=json.dumps({"response": f"Error: job {job_id} doesn't exist."}),

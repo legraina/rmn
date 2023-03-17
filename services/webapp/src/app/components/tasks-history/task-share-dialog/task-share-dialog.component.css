@@ -18,9 +18,8 @@ p {
 }
 
 .value-input-div {
-    width: 80%;
-    height: 10%;
-    margin-right: 15%;
+    width: 100%;
+    height: 15%;
 }
 
 .warning-buttons-container {
@@ -37,8 +36,8 @@ p {
 .confirm-button{
     border-radius: 10px;
     height: 50%;
-    width: 20%;
-    background-color: #f02853;
+    width: 40%;
+    background-color: #005FB4;
     color:white;
     font-size: 100%;
     transition: 0.3s;
@@ -52,7 +51,9 @@ p {
 }
 
 .confirm-button:hover{
-    background-color: #4e0701;
+    color: white;
+    background-color: #00315C;
+    border: 2px solid black;
     transform: scale(1.05,1.05);
     transition: 0.3s;
 }
@@ -61,8 +62,8 @@ p {
 .cancel-button{
     border-radius: 10px;
     height: 50%;
-    width: 20%;
-    background-color: #000000;
+    width: 40%;
+    background-color: #f02853;
     color:white;
     font-size: 100%;
     transition: 0.3s;
@@ -76,9 +77,7 @@ p {
 }
 
 .cancel-button:hover{
-    color: #000000;
-    background-color: #ffffff;
-    border: 2px solid black;
+    background-color: #BB190C;
     transform: scale(1.05,1.05);
     transition: 0.3s;
 }
