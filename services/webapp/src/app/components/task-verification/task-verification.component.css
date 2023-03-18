@@ -84,7 +84,7 @@ hr.header-line {
 
 .filter-job-container {
     width: 100%;
-    flex-basis: 20%;
+    height: 20%;
 
     display: flex;
     align-items: center;
@@ -93,7 +93,7 @@ hr.header-line {
 
 .validate-job-container {
     width: 100%;
-    flex-basis: 20%;
+    height: 20%;
 
     display: flex;
     align-items: center;
@@ -126,7 +126,7 @@ hr.header-line {
 
 .files-list-container {
     width: 100%;
-    flex-basis: auto;
+    height: 80%;
     overflow-y: auto;
 
     display: flex;

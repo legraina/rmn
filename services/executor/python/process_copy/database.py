@@ -33,7 +33,6 @@ class Database:
         status,
         matricule,
         time,
-        n_total_doc,
         filename,
     ):
         return self.mongo_database["job_documents"].insert_one(
@@ -46,7 +45,6 @@ class Database:
                 "image_id": image_id,
                 "status": status.value,
                 "execution_time": time,
-                "n_total_doc": n_total_doc,
                 "filename": filename,
             }
         )
@@ -66,7 +64,6 @@ class Database:
         status,
         matricule,
         time,
-        n_total_doc,
         max_nb_question,
         group
     ):
@@ -89,7 +86,6 @@ class Database:
                     "image_id": image_id,
                     "status": status.value,
                     "execution_time": time,
-                    "n_total_doc": n_total_doc,
                     "group": group
                 }
             },

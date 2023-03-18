@@ -253,8 +253,7 @@ def evaluate():
         "max_questions": 1,
         "notes_file_id": notes_file_id,
         "zip_file_id": zip_file_id,
-        "students_list": [],
-        "groups": []
+        "students_list": []
     }
 
     try:
@@ -746,7 +745,8 @@ def get_documents():
             "total": doc["total"],
             "status": doc["status"],
             "exec_time": doc["execution_time"],
-            "n_total_doc": count
+            "n_total_doc": count,
+            "group": doc["group"]
         }
         for doc in docs
     ]

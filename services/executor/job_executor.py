@@ -182,7 +182,6 @@ if __name__ == "__main__":
                             continue
 
                         doc_idx = doc["document_index"]
-                        n_total_doc = doc["n_total_doc"]
 
                         start_time = time.time()
 
