@@ -8,6 +8,7 @@ import { HttpClient } from '@angular/common/http';
 import { ValidationWarningDialogComponent } from './validation-warning-dialog/validation-warning-dialog.component';
 import { Router, ActivatedRoute } from '@angular/router';
 import { UserService } from 'src/app/services/user.service';
+import { DocumentsService } from 'src/app/services/documents.service';
 import { SERVER_URL } from 'src/app/utils';
 
 @Component({
@@ -25,7 +26,8 @@ export class TaskVerificationComponent implements OnInit {
     public dialog: MatDialog,
     private router: Router,
     private route: ActivatedRoute,
-    private userService: UserService) { }
+    private userService: UserService,
+    private docService: DocumentsService) { }
 
   pictureLoading: boolean = true;
   disabledValidationButton = true;
@@ -134,29 +136,9 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   async getDocuments() {
-    const formdata: FormData = new FormData();
-    formdata.append('job_id', this.tasksService.getvalidatingTaskId());
-    this.userService.addTokens(formdata);
-
-    try {
-      const promise = await this.http.post<any>(`${SERVER_URL}documents`, formdata).toPromise();
-      this.examsList = promise['response'];
-      // fetch subgroups if any
-      this.subgroupsList = [""];
-      this.examsList.forEach((exam: any) => {
-        if (exam.group && !this.subgroupsList.includes(exam.group)) {
-            this.subgroupsList.push(exam.group);
-        }
-      });
-      this.subgroupsList.sort((a, b) => {
-        if (a === "") return -1;
-        return a.localeCompare(b);
-      });
-      // compute sub exams list if any selected subgroup
-      this.getSubExamsList();
-    } catch (error) {
-      console.log(error);
-    }
+    await this.docService.getDocuments(this.tasksService.getvalidatingTaskId());
+    // compute sub exams list if any selected subgroup
+    this.getSubExamsList();
   }
 
   getSubExamsList(): void {

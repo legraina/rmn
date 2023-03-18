@@ -1,6 +1,14 @@
 <div class="dialog-container">
-    <div class="warning-text-container">
-        <p>Voici le lien pour partager la tâche {{this.data.taskName}}:</p>
+    <div class="text-container">
+        <div class="text-container" *ngIf="this.subgroupsList.length <= 1">
+          <p>Le lien pour partager la tâche {{this.data.taskName}}:</p>
+        </div>
+        <div class="text-container" *ngIf="this.subgroupsList.length > 1">
+          <label>Le lien pour partager la tâche {{this.data.taskName}} pour le groupe:</label>
+          <select (change)="this.getUrl()" [(ngModel)]="this.subgroupIndex">
+            <option *ngFor="let g of this.subgroupsList">{{g}}</option>
+          </select>
+        </div>
     </div>
     <div class="value-input-div">
       <input type="text" [readonly]="true" [(ngModel)]="this.url" [disabled]="true">
