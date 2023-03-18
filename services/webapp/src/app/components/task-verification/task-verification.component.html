@@ -8,6 +8,12 @@
     </div>
     <div class="background">
         <div class="files-container">
+            <div class="filter-job-container" *ngIf="this.loggued() && this.subgroupsList.length > 1">
+              <label>Filtrer par groupe: </label>
+              <select (change)="this.loadSubExamsList()" [(ngModel)]="this.subgroupIndex">
+                <option *ngFor="let g of this.subgroupsList">{{g}}</option>
+              </select>
+            </div>
             <div class="files-list-container">
                 <div class="file-container" *ngFor="let exam of this.subExamsList"
                     (click)="changeCurrentCopy(exam.document_index, exam.status)">
@@ -28,7 +34,7 @@
                     </div>
                 </div>
             </div>
-            <div class="validate-job-container">
+            <div class="validate-job-container" *ngIf="this.loggued()">
                 <button class="validate-job-button" mat-flat-button (click)="validateJob()"
                 [disabled]="this.disabledValidationButton">FINALISER</button>
             </div>

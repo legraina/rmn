@@ -3,8 +3,7 @@
         <p>Voici le lien pour partager la tâche {{this.data.taskName}}:</p>
     </div>
     <div class="value-input-div">
-      <input type="text" [readonly]="true"
-             id="text-box" [(ngModel)]="this.url" [disabled]="true">
+      <input type="text" [readonly]="true" [(ngModel)]="this.url" [disabled]="true">
     </div>
     <div class="warning-buttons-container">
         <button class="confirm-button" mat-flat-button (click)="share()">Copier lien</button>

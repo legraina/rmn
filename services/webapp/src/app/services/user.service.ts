@@ -30,6 +30,11 @@ export class UserService implements CanActivate, CanActivateChild {
     this.moodleStructureInd = (moodleInd && moodleInd != "undefined") ? JSON.parse(localStorage.getItem('moodleStructureInd')) : false
   }
 
+  setShareToken(shareToken: string): void {
+    this.shareToken = shareToken;
+    localStorage.setItem('shareToken', shareToken);
+  }
+
   addTokens(form) {
     if (this.token) {
       form.append('token', this.token);
@@ -94,8 +99,7 @@ export class UserService implements CanActivate, CanActivateChild {
 
   canActivateChild(route: ActivatedRouteSnapshot,
                    state: RouterStateSnapshot): boolean {
-    this.shareToken = route.queryParamMap.get('token');
-    localStorage.setItem('shareToken', this.shareToken);
+    this.setShareToken(route.queryParams['token']);
     return this.loggued() || this.shareToken != null;
   }
 }

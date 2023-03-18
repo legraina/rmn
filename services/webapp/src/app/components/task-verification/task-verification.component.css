@@ -82,9 +82,18 @@ hr.header-line {
     -ms-box-shadow: 0 5px 10px 0px rgba(0, 0, 0, 0.7);
 }
 
+.filter-job-container {
+    width: 100%;
+    height: 15%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .validate-job-container {
     width: 100%;
-    height: 20%;
+    height: 15%;
 
     display: flex;
     align-items: center;
@@ -117,10 +126,10 @@ hr.header-line {
 
 .files-list-container {
     width: 100%;
-    height: 80%;
     overflow-y: auto;
 
     display: flex;
+    flex-direction: column;
     flex-wrap: wrap;
     align-content: flex-start;
 }

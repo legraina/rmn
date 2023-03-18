@@ -27,7 +27,6 @@ export class TaskVerificationComponent implements OnInit {
     private route: ActivatedRoute,
     private userService: UserService) { }
 
-  subgroup: string;
   pictureLoading: boolean = true;
   disabledValidationButton = true;
   disabledValidationcontainer = true;
@@ -50,13 +49,23 @@ export class TaskVerificationComponent implements OnInit {
   examsList: Array<any>;
   subExamsList: Array<number>;
   matriculeList: Array<any>;
+  subgroup: string;
+  subgroupsList: Array<string>;
+  subgroupIndex: number;
 
   async ngOnInit(): Promise<any> {
+    // fetch query entries
+    let token = this.route.snapshot.queryParams['token'];
+    if (token) {
+      this.userService.setShareToken(token);
+    }
     let jobId = this.route.snapshot.queryParams['job'];
     if (jobId) {
       this.tasksService.setvalidatingTaskId(jobId);
     }
     this.subgroup = this.route.snapshot.queryParams['group'];
+    this.subgroupsList = [];
+    // fetch job and documents
     this.job = await this.tasksService.getTask();
     if (this.job && this.job["job_id"]) {
       await this.getDocuments();
@@ -132,20 +141,44 @@ export class TaskVerificationComponent implements OnInit {
     try {
       const promise = await this.http.post<any>(`${SERVER_URL}documents`, formdata).toPromise();
       this.examsList = promise['response'];
-      this.subExamsList = this.examsList;
-      if (this.subgroup) {
-        this.subExamsList = [];
-        for (let i = 0; i < this.examsList.length; i++) {
-          if (this.examsList[i]['group'] === this.subgroup) {
-            this.subExamsList.push(this.examsList[i]);
-          }
+      // fetch subgroups if any
+      this.subgroupsList = [""];
+      this.examsList.forEach((exam: any) => {
+        if (exam.group && !this.subgroupsList.includes(exam.group)) {
+            this.subgroupsList.push(exam.group);
         }
-      }
+      });
+      this.subgroupsList.sort((a, b) => {
+        if (a === "") return -1;
+        return a.localeCompare(b);
+      });
+      // compute sub exams list if any selected subgroup
+      this.getSubExamsList();
     } catch (error) {
       console.log(error);
     }
   }
 
+  getSubExamsList(): void {
+    if (this.subgroup) {
+      let subExamsList = [];
+      for (let i = 0; i < this.examsList.length; i++) {
+        if (this.examsList[i]['group'] === this.subgroup) {
+          subExamsList.push(this.examsList[i]);
+        }
+      }
+      this.subExamsList = subExamsList;
+    } else {
+      this.subExamsList = this.examsList;
+    }
+  }
+
+  loadSubExamsList(): void {
+    this.subgroup = this.subgroupsList[this.subgroupIndex];
+    this.getSubExamsList();
+    this.currentCopy = this.initialCopyIndex;
+    this.nextCopy();
+  }
 
   loadCopyInCanvas() {
     const formdata: FormData = new FormData();
