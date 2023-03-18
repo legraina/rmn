@@ -66,22 +66,17 @@ export class TaskVerificationComponent implements OnInit {
       this.tasksService.setvalidatingTaskId(jobId);
     }
     this.subgroup = this.route.snapshot.queryParams['group'];
-    this.subgroupsList = [];
+    if (!this.subgroup) {
+      this.subgroup = "";
+    }
+    this.subgroupsList = [""];
     // fetch job and documents
     this.job = await this.tasksService.getTask();
     if (this.job && this.job["job_id"]) {
+      this.getMatriculeList();
       await this.getDocuments();
       this.initialCopyIndex = this.examsList[0].document_index;
-      this.currentCopy = this.initialCopyIndex;
-      this.checkForAvailableCopies();
-      this.loadCopyInCanvas();
-      this.getMatriculeList();
-      this.getCurrentMatricule();
-      this.getCurrentTotal();
-      this.getCurrentPredictions();
-      this.getCurrentStatus();
-      this.setChosenColor(this.examsList[0]["status"]);
-
+      this.changeCurrentCopy(this.initialCopyIndex, this.examsList[0]["status"]);
       this.disabledValidationButton = (!this.userService.token || this.job["job_status"] !== 'VALIDATION');
 
       this.socketService.join(this.job["job_id"]);
@@ -91,11 +86,7 @@ export class TaskVerificationComponent implements OnInit {
 
         let resp = JSON.parse(params);
         if (this.currentCopy === resp.document_index) {
-          this.loadCopyInCanvas();
-          this.getCurrentMatricule();
-          this.getCurrentTotal();
-          this.getCurrentPredictions();
-          this.getCurrentStatus();
+          this.loadCopy();
         }
       });
 
@@ -144,13 +135,13 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   getSubExamsList(): void {
-    if (this.subgroup) {
+    if (this.subgroup != "") {
       let subExamsList = [];
-      for (let i = 0; i < this.docService.documentsList.length; i++) {
-        if (this.examsList[i]['group'] === this.subgroup) {
-          subExamsList.push(this.examsList[i]);
+      this.examsList.forEach((exam: any) => {
+        if (exam['group'] == this.subgroup) {
+          subExamsList.push(exam);
         }
-      }
+      })
       this.subExamsList = subExamsList;
     } else {
       this.subExamsList = this.examsList;
@@ -160,7 +151,7 @@ export class TaskVerificationComponent implements OnInit {
   loadSubExamsList(): void {
     this.subgroup = this.subgroupsList[this.subgroupIndex];
     this.getSubExamsList();
-    this.currentCopy = this.initialCopyIndex;
+    this.currentCopy = this.initialCopyIndex - 1;
     this.nextCopy();
   }
 
@@ -205,17 +196,21 @@ export class TaskVerificationComponent implements OnInit {
     if (status !== "NOT_READY") {
       this.currentCopy = copyIndex;
       this.checkForAvailableCopies();
-      this.loadCopyInCanvas();
-      this.getCurrentMatricule();
-      this.getCurrentTotal();
-      this.getCurrentPredictions();
-      this.getCurrentStatus();
+      this.loadCopy();
       this.setChosenColor(status);
     }
   }
 
   changeCurrentExam(examIndex) {
     this.changeCurrentCopy(this.initialCopyIndex + examIndex, this.examsList[examIndex].status);
+  }
+
+  loadCopy(): void {
+    this.loadCopyInCanvas();
+    this.getCurrentMatricule();
+    this.getCurrentTotal();
+    this.getCurrentPredictions();
+    this.getCurrentStatus();
   }
 
   setChosenColor(status: string): void {
@@ -231,18 +226,10 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   checkForAvailableCopies() {
-    let counter = 0;
-    this.examsList.forEach((exam: any) => {
-      if (exam["status"] === "NOT_READY") {
-        counter += 1;
-      }
-    });
-
-    if (counter === this.examsList.length && !this.disabledValidationcontainer) {
+    let anyNotReady = this.subExamsList.find((exam: any) => exam["status"] !== "NOT_READY");
+    if (!anyNotReady && !this.disabledValidationcontainer) {
       this.disabledValidationcontainer = true;
-    }
-
-    if (this.examsList[this.currentIndex()]["status"] !== "NOT_READY") {
+    } else if (this.examsList[this.currentIndex()]["status"] !== "NOT_READY") {
       this.disabledValidationcontainer = false;
     }
   }
@@ -429,13 +416,18 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   nextCopy(): void {
+    let tempIndex = this.nextCopyIndex();
+    if (tempIndex < this.examsList.length) {
+      this.changeCurrentExam(tempIndex);
+    }
+  }
+
+  nextCopyIndex(): number {
     let tempIndex = this.currentIndex() + 1;
     while (tempIndex < this.examsList.length && !this.subExamsList.includes(this.examsList[tempIndex])) {
       tempIndex ++;
     }
-    if (tempIndex < this.examsList.length) {
-      this.changeCurrentExam(tempIndex);
-    }
+    return tempIndex;
   }
 
   loggued(): boolean {

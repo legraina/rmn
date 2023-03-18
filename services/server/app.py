@@ -746,7 +746,7 @@ def get_documents():
             "status": doc["status"],
             "exec_time": doc["execution_time"],
             "n_total_doc": count,
-            "group": doc["group"]
+            "group": doc.get("group", "")
         }
         for doc in docs
     ]

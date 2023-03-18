@@ -19,12 +19,12 @@ export class DocumentsService {
     const formdata: FormData = new FormData();
     formdata.append('job_id', jobId);
     this.userService.addTokens(formdata);
+    this.subgroupsList = [""];
 
     try {
       const promise = await this.http.post<any>(`${SERVER_URL}documents`, formdata).toPromise();
       this.documentsList = promise['response'];
       // fetch subgroups if any
-      this.subgroupsList = [""];
       this.documentsList.forEach((exam: any) => {
         if (exam.group && !this.subgroupsList.includes(exam.group)) {
             this.subgroupsList.push(exam.group);

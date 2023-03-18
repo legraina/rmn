@@ -1,5 +1,5 @@
 <div class="page-count" *ngIf="!this.pictureLoading || !this.disabledValidationcontainer">
-    {{this.currentCopy}} / {{this.subExamsList.length}}
+    {{this.currentIndex()}} / {{this.subExamsList.length - 1}}
 </div>
 <div class="task-verification-container">
     <div class="header">
