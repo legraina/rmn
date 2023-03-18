@@ -92,8 +92,9 @@
                 <!-- Job Deletion Column -->
                 <ng-container matColumnDef="job_deletion">
                     <th mat-header-cell *matHeaderCellDef mat-sort-header> </th>
-                    <td mat-cell *matCellDef="let row" class="button-cell">
-                      <button (click)="deleteJob(row.job_id)" mat-raised-button color="warn">Supprimer</button>
+                    <td mat-cell *matCellDef="let row">
+                      <button (click)="deleteJob(row.job_id)" mat-raised-button color="warn"
+                              class="button-cell">Supprimer</button>
                         <!-- <button *ngIf="row.job_status == 'ARCHIVED' || row.job_status == 'ERROR'"
                             (click)="deleteJob(row.job_id)" mat-raised-button color="warn">Supprimer</button>
                         <button *ngIf="row.job_status != 'ARCHIVED' && row.job_status != 'ERROR'" mat-raised-button
@@ -104,9 +105,10 @@
               <!-- Job share Column -->
                 <ng-container matColumnDef="job_share">
                     <th mat-header-cell *matHeaderCellDef mat-sort-header> </th>
-                    <td mat-cell *matCellDef="let row" class="button-cell">
+                    <td mat-cell *matCellDef="let row">
                       <button *ngIf="row.job_status == 'RUN' || row.job_status == 'VALIDATION'"
-                              (click)="shareJob(row.job_id, row.job_name)" mat-raised-button color="primary">Partager</button>
+                              (click)="shareJob(row.job_id, row.job_name)" mat-raised-button color="primary"
+                              class="button-cell">Partager</button>
                     </td>
                 </ng-container>
 

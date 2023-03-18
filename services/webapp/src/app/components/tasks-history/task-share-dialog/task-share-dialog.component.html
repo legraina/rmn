@@ -3,11 +3,11 @@
         <p>Voici le lien pour partager la tâche {{this.data.taskName}}:</p>
     </div>
     <div class="value-input-div">
-      <input (click)="this.selectText($event)" type="text" [readonly]="true"
+      <input type="text" [readonly]="true"
              id="text-box" [(ngModel)]="this.url" [disabled]="true">
     </div>
     <div class="warning-buttons-container">
-        <button class="confirm-button" mat-flat-button (click)="close(true)">Partager</button>
+        <button class="confirm-button" mat-flat-button (click)="share()">Copier lien</button>
         <button class="cancel-button" mat-flat-button (click)="unshare()">Annuler</button>
     </div>
 </div>

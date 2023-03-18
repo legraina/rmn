@@ -9,7 +9,7 @@ import { SERVER_URL } from '../utils';
 })
 export class UserService implements CanActivate, CanActivateChild {
 
-  currentUsername: string = "bob2";
+  currentUsername: string;
   token: string;
   shareToken: string;
   role: string;
@@ -21,6 +21,7 @@ export class UserService implements CanActivate, CanActivateChild {
     this.currentUsername = localStorage.getItem('user_id')
     this.role = localStorage.getItem('role')
     this.token = localStorage.getItem('token')
+    this.shareToken = localStorage.getItem('shareToken')
 
     let saveImages = localStorage.getItem('saveVerifiedImages')
     this.saveVerifiedImages = (saveImages && saveImages != "undefined") ? JSON.parse(localStorage.getItem('saveVerifiedImages')) : false
@@ -93,8 +94,8 @@ export class UserService implements CanActivate, CanActivateChild {
 
   canActivateChild(route: ActivatedRouteSnapshot,
                    state: RouterStateSnapshot): boolean {
-    console.log("Query params: ", route.queryParamMap);
     this.shareToken = route.queryParamMap.get('token');
-    return this.loggued() || this.shareToken;
+    localStorage.setItem('shareToken', this.shareToken);
+    return this.loggued() || this.shareToken != null;
   }
 }

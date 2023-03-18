@@ -3,6 +3,7 @@ import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { NotificationService } from "../../../services/notification.service";
 import { UserService } from "../../../services/user.service";
 import { HttpClient } from '@angular/common/http';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { SERVER_URL } from 'src/app/utils';
 
 export interface DialogData {
@@ -22,6 +23,7 @@ export class TaskShareDialogComponent implements OnInit {
     private notifyService : NotificationService,
     private userService: UserService,
     private http: HttpClient,
+    private clipboard: Clipboard,
     @Inject(MAT_DIALOG_DATA) public data: DialogData) {}
 
   ngOnInit(): void {
@@ -49,14 +51,16 @@ export class TaskShareDialogComponent implements OnInit {
       });
   }
 
+  share(): void {
+    this.copyUrl();
+    this.close(true);
+  }
+
   close(r: any): void {
     this.dialogRef.close(r);
   }
 
-  selectText(event): void {
-    // const input = document.getElementById('text-box');
-    // input.focus();
-    event.target.select();
+  copyUrl() {
+    this.clipboard.copy(this.url);
   }
-
 }

@@ -52,7 +52,10 @@ export class TaskVerificationComponent implements OnInit {
   matriculeList: Array<any>;
 
   async ngOnInit(): Promise<any> {
-    this.tasksService.setvalidatingTaskId(this.route.snapshot.queryParams['job']);
+    let jobId = this.route.snapshot.queryParams['job'];
+    if (jobId) {
+      this.tasksService.setvalidatingTaskId(jobId);
+    }
     this.subgroup = this.route.snapshot.queryParams['group'];
     this.job = await this.tasksService.getTask();
     if (this.job && this.job["job_id"]) {

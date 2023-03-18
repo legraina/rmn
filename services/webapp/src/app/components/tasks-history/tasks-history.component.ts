@@ -222,7 +222,7 @@ export class TasksHistoryComponent implements OnInit {
       data: {taskId: jobId, taskName: jobName}
     });
     dialogRef.afterClosed().subscribe(async result => {
-      if (result !== true) {
+      if (result === false) {
         const message = "Une erreur est intervenue lors du partage de la tâche !";
         this.notificationService.showError(message, "Erreur!");
       }

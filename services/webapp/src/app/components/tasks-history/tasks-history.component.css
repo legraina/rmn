@@ -146,8 +146,7 @@ mat-progress-spinner {
 }
 
 .button-cell {
-  margin-left: 5%;
-  margin-right: 5%;
+  padding: 10px;
 }
 
 /********************************/
