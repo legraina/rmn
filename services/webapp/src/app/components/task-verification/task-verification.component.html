@@ -14,7 +14,8 @@
                 <option *ngFor="let g of this.subgroupsList">{{g}}</option>
               </select>
             </div>
-            <div class="files-list-container">
+            <div class="files-box-container">
+              <div class="files-list-container">
                 <div class="file-container" *ngFor="let exam of this.subExamsList"
                     (click)="changeCurrentCopy(exam.document_index, exam.status)">
                     <div class="disabled-copy" *ngIf="exam.status == 'NOT_READY'">
@@ -33,6 +34,7 @@
                         <strong>{{exam.document_index}}</strong>
                     </div>
                 </div>
+              </div>
             </div>
             <div class="validate-job-container" *ngIf="this.loggued()">
                 <button class="validate-job-button" mat-flat-button (click)="validateJob()"
