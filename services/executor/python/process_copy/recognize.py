@@ -546,7 +546,8 @@ def grade_files(
                 group = ""
                 l_group = group_label(grades_dfs[i])
                 if l_group:
-                    group = grades_dfs[i].at[m, l_group]
+                    group = str(grades_dfs[i].at[m, l_group])
+                    print("Group:", group)
 
                 # fill moodle csv file
                 if numbers and len(numbers) > 1:

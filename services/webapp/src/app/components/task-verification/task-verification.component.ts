@@ -137,6 +137,8 @@ export class TaskVerificationComponent implements OnInit {
 
   async getDocuments() {
     await this.docService.getDocuments(this.tasksService.getvalidatingTaskId());
+    this.examsList = this.docService.documentsList;
+    this.subgroupsList = this.docService.subgroupsList;
     // compute sub exams list if any selected subgroup
     this.getSubExamsList();
   }
@@ -144,7 +146,7 @@ export class TaskVerificationComponent implements OnInit {
   getSubExamsList(): void {
     if (this.subgroup) {
       let subExamsList = [];
-      for (let i = 0; i < this.examsList.length; i++) {
+      for (let i = 0; i < this.docService.documentsList.length; i++) {
         if (this.examsList[i]['group'] === this.subgroup) {
           subExamsList.push(this.examsList[i]);
         }
