@@ -33,7 +33,7 @@ class UserService:
             return False
         if role is None:
             return True
-        return tokenDB["role"] == role.value
+        return tokenDB["role"] == role.value, tokenDB["username"]
 
     def delete_tokens(username, n_days_old, database):
        r = {}

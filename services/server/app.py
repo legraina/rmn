@@ -67,11 +67,21 @@ def check_token(form, role=None):
     # check if token valid
     db = mongo_client["RMN"]
     token = form['token']
-    if not UserService.verify_token(token, db, role):
+    valid, username = UserService.verify_token(token, db, role)
+    if not valid:
         return Response(
             response=json.dumps({"response": f"Error: token not valid. Please login."}),
             status=400,
         )
+    if "user_id" in form:
+        if form["user_id"] != username:
+            return Response(
+                response=json.dumps({"response": f"Error: token not valid. Please login."}),
+                status=400,
+            )
+    else:
+        form.add("user_id", username)
+
     return None
 
 
@@ -505,8 +515,12 @@ def get_job():
         )
     job_id = str(request_form["job_id"])
 
+    req = {"job_id": job_id}
+    if "user_id" in request_form:
+        req["user_id"] = str(request_form["user_id"])
+
     # Get all jobs from DB
-    job = collection.find_one({"job_id": job_id})
+    job = collection.find_one(req)
     if job is None:
         return Response(
             response=json.dumps({"response": f"Error: job {job_id} doesn't exist."}),
@@ -727,13 +741,17 @@ def get_documents():
     #
     job_id = str(request_form["job_id"])
 
+    req = {"job_id": job_id}
+    if "user_id" in request_form:
+        req["user_id"] = str(request_form["user_id"])
+
     #
     db = mongo_client["RMN"]
     collection = db["job_documents"]
 
     #
-    docs = collection.find({"job_id": job_id})
-    count = collection.count_documents({"job_id": job_id})
+    docs = collection.find(req)
+    count = collection.count_documents(req)
 
     #
     resp = [
@@ -807,24 +825,24 @@ def update_document():
     matricule = str(request_form["matricule"])
     subquestion_predictions = json.loads(request_form["subquestion_predictions"])
     total = float(request_form["total"])
-    status = Document_Status(str(request_form["status"]))
 
     #
     db = mongo_client["RMN"]
     collection = db["job_documents"]
 
+    req = {"job_id": job_id, "document_index": document_index}
+    if "user_id" in request_form:
+        req["user_id"] = str(request_form["user_id"])
+
     #
-    collection.update_one(
-        {"job_id": job_id, "document_index": document_index},
-        {
-            "$set": {
-                "matricule": matricule,
-                "subquestion_predictions": subquestion_predictions,
-                "total": total,
-                "status": Document_Status.VALIDATED.value,
-            }
-        },
-    )
+    collection.update_one(req, {
+        "$set": {
+            "matricule": matricule,
+            "subquestion_predictions": subquestion_predictions,
+            "total": total,
+            "status": Document_Status.VALIDATED.value,
+        }
+    })
 
     return Response(response=json.dumps({"response": "OK"}), status=200)
 
@@ -856,10 +874,12 @@ def download_document():
     db = mongo_client["RMN"]
     document_collection = db["job_documents"]
 
+    req = {"job_id": job_id, "document_index": document_index}
+    if "user_id" in request_form:
+        req["user_id"] = str(request_form["user_id"])
+
     #
-    document_file = document_collection.find_one(
-        {"job_id": job_id, "document_index": document_index}
-    )
+    document_file = document_collection.find_one(req)
     if document_file is None:
         return Response(
             response=json.dumps({"response": f"No document found!"}),
