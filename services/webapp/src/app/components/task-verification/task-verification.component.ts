@@ -66,7 +66,7 @@ export class TaskVerificationComponent implements OnInit {
       this.tasksService.setvalidatingTaskId(jobId);
     }
     this.subgroup = this.route.snapshot.queryParams['group'];
-    if (!this.subgroup) {
+    if (this.subgroup == null) {
       this.subgroup = "";
     }
     this.subgroupsList = [""];
@@ -134,7 +134,7 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   getSubExamsList(): void {
-    if (this.subgroup != "") {
+    if (this.subgroup) {
       let subExamsList = [];
       this.examsList.forEach((exam: any) => {
         if (exam['group'] == this.subgroup) {
@@ -142,6 +142,7 @@ export class TaskVerificationComponent implements OnInit {
         }
       })
       this.subExamsList = subExamsList;
+      console.log("sub exam list size for group", this.subgroup, subExamsList.length, "/", this.examsList.length)
     } else {
       this.subExamsList = this.examsList;
     }
@@ -150,6 +151,7 @@ export class TaskVerificationComponent implements OnInit {
   loadSubExamsList(): void {
     this.subgroup = this.subgroupsList[this.subgroupIndex];
     this.getSubExamsList();
+    console.log("Group:", this.subgroup, this.subExamsList.length, "exams")
     // if any copy available
     if (this.checkForAvailableCopies()) {
       this.currentCopy = this.initialCopyIndex - 1;
@@ -198,6 +200,7 @@ export class TaskVerificationComponent implements OnInit {
 
   changeCurrentCopy(copyIndex, status) {
     if (status !== "NOT_READY") {
+      console.log("Change current copy to", copyIndex)
       this.currentCopy = copyIndex;
       this.disabledValidationcontainer = false;
       this.loadCopy();
@@ -230,11 +233,8 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   checkForAvailableCopies(): boolean {
-    let anyNotReady = this.subExamsList.length > 0;
-    if (anyNotReady) {
-      return this.subExamsList.find((exam: any) => exam["status"] !== "NOT_READY") > 0;
-    }
-    return false;
+    if (this.subExamsList.length == 0) return false;
+    return this.subExamsList.find((exam: any) => exam["status"] !== "NOT_READY") > 0;
   }
 
   getMatriculeList() {
@@ -411,6 +411,7 @@ export class TaskVerificationComponent implements OnInit {
     while (tempIndex >= 0 && !this.subExamsList.includes(this.examsList[tempIndex])) {
       tempIndex --;
     }
+    console.log("Previous copy", tempIndex)
     if (tempIndex >= 0) {
       this.changeCurrentExam(tempIndex);
     }
@@ -418,6 +419,7 @@ export class TaskVerificationComponent implements OnInit {
 
   nextCopy(): void {
     let tempIndex = this.nextCopyIndex();
+    console.log("Next copy", tempIndex)
     if (tempIndex < this.examsList.length) {
       this.changeCurrentExam(tempIndex);
     }
@@ -442,10 +444,11 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   filesListHeight(): string {
-    let height = 70;
-    if (!this.loggued()) height += 15;
-    if (!this.showFilter()) height += 15;
-    return "${height}%";
+    let height = 80;
+    if (!this.loggued()) height += 10;
+    if (!this.showFilter()) height += 10;
+    console.log("height", height+"%")
+    return height+"%";
   }
   checkValidationButton(): void {
     this.disabledValidationButton = !this.job || this.job["job_status"] !== 'VALIDATION';
