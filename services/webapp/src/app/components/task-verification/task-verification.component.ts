@@ -30,8 +30,8 @@ export class TaskVerificationComponent implements OnInit {
     private docService: DocumentsService) { }
 
   pictureLoading: boolean = true;
-  disabledValidationButton = true;
   disabledValidationcontainer = true;
+  disabledValidationButton = true;
 
   validating: boolean = false;
 
@@ -76,17 +76,17 @@ export class TaskVerificationComponent implements OnInit {
       this.getMatriculeList();
       await this.getDocuments();
       this.initialCopyIndex = this.examsList[0].document_index;
-      this.changeCurrentCopy(this.initialCopyIndex, this.examsList[0]["status"]);
-      this.disabledValidationButton = (!this.userService.token || this.job["job_status"] !== 'VALIDATION');
+      this.currentCopy = this.initialCopyIndex - 1;
+      if (this.checkForAvailableCopies()) {
+        this.nextCopy();
+      }
+      this.checkValidationButton();
 
       this.socketService.join(this.job["job_id"]);
       this.socketService.getSocket().on('document_ready', async (params: any) => {
         await this.getDocuments();
-        this.checkForAvailableCopies();
-
-        let resp = JSON.parse(params);
-        if (this.currentCopy === resp.document_index) {
-          this.loadCopy();
+        if (this.disabledValidationcontainer) {
+          this.nextCopy();
         }
       });
 
@@ -95,10 +95,9 @@ export class TaskVerificationComponent implements OnInit {
         this.socketService.getSocket().on('jobs_status', async (params: any) => {
           const resp = JSON.parse(params);
           const jobId = resp.job_id;
-          const jobStatus = resp.status;
-          console.log(this.examsList[0].job_id, jobId, this.examsList[0].job_id === jobId);
-          if (this.examsList[0].job_id === jobId) {
-            this.disabledValidationButton = jobStatus !== 'VALIDATION';
+          if (this.job["job_id"] === jobId) {
+            this.job["job_status"] = resp.status;
+            this.checkValidationButton();
           }
         });
       }
@@ -151,8 +150,13 @@ export class TaskVerificationComponent implements OnInit {
   loadSubExamsList(): void {
     this.subgroup = this.subgroupsList[this.subgroupIndex];
     this.getSubExamsList();
-    this.currentCopy = this.initialCopyIndex - 1;
-    this.nextCopy();
+    // if any copy available
+    if (this.checkForAvailableCopies()) {
+      this.currentCopy = this.initialCopyIndex - 1;
+      this.nextCopy();
+    } else {
+      this.disabledValidationcontainer = true;
+    }
   }
 
   loadCopyInCanvas() {
@@ -195,7 +199,7 @@ export class TaskVerificationComponent implements OnInit {
   changeCurrentCopy(copyIndex, status) {
     if (status !== "NOT_READY") {
       this.currentCopy = copyIndex;
-      this.checkForAvailableCopies();
+      this.disabledValidationcontainer = false;
       this.loadCopy();
       this.setChosenColor(status);
     }
@@ -225,13 +229,12 @@ export class TaskVerificationComponent implements OnInit {
     }
   }
 
-  checkForAvailableCopies() {
-    let anyNotReady = this.subExamsList.find((exam: any) => exam["status"] !== "NOT_READY");
-    if (!anyNotReady && !this.disabledValidationcontainer) {
-      this.disabledValidationcontainer = true;
-    } else if (this.examsList[this.currentIndex()]["status"] !== "NOT_READY") {
-      this.disabledValidationcontainer = false;
+  checkForAvailableCopies(): boolean {
+    let anyNotReady = this.subExamsList.length > 0;
+    if (anyNotReady) {
+      return this.subExamsList.find((exam: any) => exam["status"] !== "NOT_READY") > 0;
     }
+    return false;
   }
 
   getMatriculeList() {
@@ -300,8 +303,6 @@ export class TaskVerificationComponent implements OnInit {
       this.nextCopy();
     }
   }
-
-
 
   async validateJob() {
     let uncheckedcopy = 0;
@@ -438,5 +439,15 @@ export class TaskVerificationComponent implements OnInit {
 
   showFilter(): boolean {
     return this.loggued() && this.subgroupsList.length > 1;
+  }
+
+  filesListHeight(): string {
+    let height = 70;
+    if (!this.loggued()) height += 15;
+    if (!this.showFilter()) height += 15;
+    return "${height}%";
+  }
+  checkValidationButton(): void {
+    this.disabledValidationButton = !this.job || this.job["job_status"] !== 'VALIDATION';
   }
 }
