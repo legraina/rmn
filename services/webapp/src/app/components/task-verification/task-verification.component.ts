@@ -53,7 +53,6 @@ export class TaskVerificationComponent implements OnInit {
   matriculeList: Array<any>;
   subgroup: string;
   subgroupsList: Array<string>;
-  subgroupIndex: number;
 
   async ngOnInit(): Promise<any> {
     // fetch query entries
@@ -69,7 +68,7 @@ export class TaskVerificationComponent implements OnInit {
     if (this.subgroup == null) {
       this.subgroup = "";
     }
-    this.subgroupsList = [""];
+    this.subgroupsList = [this.subgroup];
     // fetch job and documents
     this.job = await this.tasksService.getTask();
     if (this.job && this.job["job_id"]) {
@@ -134,6 +133,7 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   getSubExamsList(): void {
+    console.log("subgroup", this.subgroup)
     if (this.subgroup) {
       let subExamsList = [];
       this.examsList.forEach((exam: any) => {
@@ -144,12 +144,12 @@ export class TaskVerificationComponent implements OnInit {
       this.subExamsList = subExamsList;
       console.log("sub exam list size for group", this.subgroup, subExamsList.length, "/", this.examsList.length)
     } else {
+      console.log("sub exam list is the full list of size", this.examsList.length)
       this.subExamsList = this.examsList;
     }
   }
 
   loadSubExamsList(): void {
-    this.subgroup = this.subgroupsList[this.subgroupIndex];
     this.getSubExamsList();
     console.log("Group:", this.subgroup, this.subExamsList.length, "exams")
     // if any copy available

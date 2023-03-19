@@ -10,7 +10,7 @@
         <div class="files-container">
             <div class="filter-job-container" *ngIf="this.showFilter()">
               <label>Filtrer par groupe: </label>
-              <select (change)="this.loadSubExamsList()" [(ngModel)]="this.subgroupIndex">
+              <select (change)="this.loadSubExamsList()" [(ngModel)]="this.subgroup">
                 <option *ngFor="let g of this.subgroupsList">{{g}}</option>
               </select>
             </div>
