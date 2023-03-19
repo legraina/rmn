@@ -435,4 +435,8 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   sortNull(): void {}
+
+  showFilter(): boolean {
+    return this.loggued() && this.subgroupsList.length > 1;
+  }
 }
