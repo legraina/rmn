@@ -51,8 +51,8 @@ export class TaskVerificationComponent implements OnInit {
   examsList: Array<any>;
   subExamsList: Array<number>;
   matriculeList: Array<any>;
-  subgroup: string;
-  subgroupsList: Array<string>;
+  group: string;
+  groupsList: Array<string>;
 
   async ngOnInit(): Promise<any> {
     // fetch query entries
@@ -64,11 +64,11 @@ export class TaskVerificationComponent implements OnInit {
     if (jobId) {
       this.tasksService.setvalidatingTaskId(jobId);
     }
-    this.subgroup = this.route.snapshot.queryParams['group'];
-    if (this.subgroup == null) {
-      this.subgroup = "";
+    this.group = this.route.snapshot.queryParams['group'];
+    if (this.group == null) {
+      this.group = "";
     }
-    this.subgroupsList = [this.subgroup];
+    this.groupsList = [this.group];
     // fetch job and documents
     this.job = await this.tasksService.getTask();
     if (this.job && this.job["job_id"]) {
@@ -127,22 +127,22 @@ export class TaskVerificationComponent implements OnInit {
   async getDocuments() {
     await this.docService.getDocuments(this.tasksService.getvalidatingTaskId());
     this.examsList = this.docService.documentsList;
-    this.subgroupsList = this.docService.subgroupsList;
-    // compute sub exams list if any selected subgroup
+    this.groupsList = this.docService.groupsList;
+    // compute sub exams list if any selected group
     this.getSubExamsList();
   }
 
   getSubExamsList(): void {
-    console.log("subgroup", this.subgroup)
-    if (this.subgroup) {
+    console.log("group", this.group)
+    if (this.group) {
       let subExamsList = [];
       this.examsList.forEach((exam: any) => {
-        if (exam['group'] == this.subgroup) {
+        if (exam['group'] == this.group) {
           subExamsList.push(exam);
         }
       })
       this.subExamsList = subExamsList;
-      console.log("sub exam list size for group", this.subgroup, subExamsList.length, "/", this.examsList.length)
+      console.log("sub exam list size for group", this.group, subExamsList.length, "/", this.examsList.length)
     } else {
       console.log("sub exam list is the full list of size", this.examsList.length)
       this.subExamsList = this.examsList;
@@ -151,7 +151,7 @@ export class TaskVerificationComponent implements OnInit {
 
   loadSubExamsList(): void {
     this.getSubExamsList();
-    console.log("Group:", this.subgroup, this.subExamsList.length, "exams")
+    console.log("Group:", this.group, this.subExamsList.length, "exams")
     // if any copy available
     if (this.checkForAvailableCopies()) {
       this.currentCopy = this.initialCopyIndex - 1;
@@ -234,7 +234,9 @@ export class TaskVerificationComponent implements OnInit {
 
   checkForAvailableCopies(): boolean {
     if (this.subExamsList.length == 0) return false;
-    return this.subExamsList.find((exam: any) => exam["status"] !== "NOT_READY") > 0;
+    let exam = this.subExamsList.find((exam: any) => exam["status"] != "NOT_READY");
+    console.log("Found ready exam", exam)
+    return exam != undefined;
   }
 
   getMatriculeList() {
@@ -440,7 +442,7 @@ export class TaskVerificationComponent implements OnInit {
   sortNull(): void {}
 
   showFilter(): boolean {
-    return this.loggued() && this.subgroupsList.length > 1;
+    return this.loggued() && this.groupsList.length > 1;
   }
 
   filesListHeight(): string {

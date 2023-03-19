@@ -20,8 +20,8 @@ export class TaskShareDialogComponent implements OnInit {
 
   url: string;
   shareUrl: string;
-  subgroupsList: Array<string>;
-  subgroupIndex: number;
+  groupsList: Array<string>;
+  group: string;
   constructor(
     public dialogRef: MatDialogRef<TaskShareDialogComponent>,
     private notifyService : NotificationService,
@@ -41,8 +41,8 @@ export class TaskShareDialogComponent implements OnInit {
         if (resp.share_url) {
           this.shareUrl = resp.share_url;
           this.docService.getDocuments(this.data.taskId).then(() => {
-            this.subgroupsList = this.docService.subgroupsList;
-            this.subgroupIndex = 0;
+            this.groupsList = this.docService.groupsList;
+            this.group = "";
             this.getUrl();
           });
         } else {
@@ -53,10 +53,7 @@ export class TaskShareDialogComponent implements OnInit {
 
   getUrl(): void {
     this.url = this.shareUrl;
-    if (this.subgroupIndex > 0) {
-      let g = this.subgroupsList[this.subgroupIndex];
-      this.url += "&group="+encodeURIComponent(g);
-    }
+    if (this.group) this.url += "&group="+encodeURIComponent(this.group);
   }
 
   unshare(): void {

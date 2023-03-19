@@ -12,7 +12,8 @@ TEMP_FOLDER = Path(__file__).resolve().parent.joinpath('temp')
 class PreviewHandler:
     RED = (0, 6, 225)
     GREEN = (0, 154, 23)
-    ORANGE = (30,144,255)
+    BLUE = (65, 105, 225)
+    ORANGE = (30, 144, 255)
 
     def createDocumentPreview(self, pdf_file_path, output_f, results, dpi=300, box=None, boxes=[]):
         if not os.path.exists(TEMP_FOLDER):
@@ -59,7 +60,10 @@ class PreviewHandler:
 
         if box:
             x0 = int(box[0] * img.shape[1])
+            x1 = int(box[1] * img.shape[1])
             y0 = int(box[2] * img.shape[0])
+            y1 = int(box[3] * img.shape[0])
+            cv2.rectangle(img, (x0, y0), (x1, y1), self.BLUE, 10)
             for c in boxes:
                 (x, y, w, h) = cv2.boundingRect(c)
                 cv2.rectangle(img, (x0 + x, y0 + y), (x0 + x + w, y0 + y + h), self.ORANGE, 5)

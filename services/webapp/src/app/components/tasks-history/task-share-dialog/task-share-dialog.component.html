@@ -1,12 +1,12 @@
 <div class="dialog-container">
     <div class="text-container">
-        <div class="text-container" *ngIf="this.subgroupsList.length <= 1">
+        <div class="text-container" *ngIf="this.groupsList.length <= 1">
           <p>Le lien pour partager la tâche {{this.data.taskName}}:</p>
         </div>
-        <div class="text-container" *ngIf="this.subgroupsList.length > 1">
+        <div class="text-container" *ngIf="this.groupsList.length > 1">
           <label>Le lien pour partager la tâche {{this.data.taskName}} pour le groupe:</label>
-          <select (change)="this.getUrl()" [(ngModel)]="this.subgroupIndex">
-            <option *ngFor="let g of this.subgroupsList">{{g}}</option>
+          <select (change)="this.getUrl()" [(ngModel)]="this.group">
+            <option *ngFor="let g of this.groupsList">{{g}}</option>
           </select>
         </div>
     </div>

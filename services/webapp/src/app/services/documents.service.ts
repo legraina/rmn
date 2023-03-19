@@ -10,7 +10,7 @@ export class DocumentsService {
 
   jobId: string;
   documentsList: Array<any>;
-  subgroupsList: Array<string>;
+  groupsList: Array<string>;
 
   constructor(private http: HttpClient,
               private userService: UserService) { }
@@ -19,18 +19,18 @@ export class DocumentsService {
     const formdata: FormData = new FormData();
     formdata.append('job_id', jobId);
     this.userService.addTokens(formdata);
-    this.subgroupsList = [""];
+    this.groupsList = [""];
 
     try {
       const promise = await this.http.post<any>(`${SERVER_URL}documents`, formdata).toPromise();
       this.documentsList = promise['response'];
-      // fetch subgroups if any
+      // fetch groups if any
       this.documentsList.forEach((exam: any) => {
-        if (exam.group && !this.subgroupsList.includes(exam.group)) {
-            this.subgroupsList.push(exam.group);
+        if (exam.group && !this.groupsList.includes(exam.group)) {
+            this.groupsList.push(exam.group);
         }
       });
-      this.subgroupsList.sort((a, b) => {
+      this.groupsList.sort((a, b) => {
         if (a === "") return -1;
         return a.localeCompare(b);
       });
