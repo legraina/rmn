@@ -31,20 +31,19 @@ export class TaskShareDialogComponent implements OnInit {
     private clipboard: Clipboard,
     @Inject(MAT_DIALOG_DATA) public data: DialogData) {}
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<any> {
     const formdata: FormData = new FormData();
     formdata.append('token', this.userService.token);
     formdata.append('job_id', this.data.taskId);
+    await this.docService.getDocuments(this.data.taskId);
+    this.groupsList = this.docService.groupsList;
+    this.group = "";
+    this.getUrl();
     this.http.post<any>(`${SERVER_URL}job/share`, formdata).subscribe(
       (data) => {
         let resp = data['response'];
         if (resp.share_url) {
           this.shareUrl = resp.share_url;
-          this.docService.getDocuments(this.data.taskId).then(() => {
-            this.groupsList = this.docService.groupsList;
-            this.group = "";
-            this.getUrl();
-          });
         } else {
           this.close(false);
         }

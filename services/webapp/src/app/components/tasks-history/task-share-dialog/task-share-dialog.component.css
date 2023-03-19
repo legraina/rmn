@@ -17,9 +17,8 @@ p {
     font-size: 15px;
 }
 
-.value-input-div {
-    width: 100%;
-    height: 15%;
+input {
+  width: 100%;
 }
 
 .warning-buttons-container {
