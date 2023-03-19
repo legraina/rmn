@@ -79,8 +79,6 @@ def check_token(form, role=None):
                 response=json.dumps({"response": f"Error: token not valid. Please login."}),
                 status=400,
             )
-    else:
-        form.add("user_id", username)
 
     return None
 

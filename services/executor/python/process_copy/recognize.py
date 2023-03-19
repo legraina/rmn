@@ -461,7 +461,7 @@ def grade_files(
             for file in files:
                 # check if document has already been processed
                 doc = db.get_document(job_id, counter)
-                if doc['status'] != Document_Status.NOT_READY.value:
+                if doc and doc['status'] != Document_Status.NOT_READY.value:
                     print("Document", counter, "is ready with status", doc['status'])
                     m = doc["matricule"]
                     if m not in matricules_data:

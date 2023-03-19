@@ -36,11 +36,11 @@
             </div>
             <div class="validate-job-container" *ngIf="this.loggued()">
                 <button class="validate-job-button" mat-flat-button (click)="validateJob()"
-                [disabled]="this.disabledValidationButton">FINALISER</button>
+                [disabled]="this.disabledValidationButton">Finaliser</button>
             </div>
         </div>
         <div class="validation-container">
-            <p *ngIf="this.disabledValidationcontainer">Aucune copie n'est prêt à être valider</p>
+            <p *ngIf="this.disabledValidationcontainer">Aucune copie n'est prête à être validée.</p>
             <div class="picture-container" *ngIf="!this.disabledValidationcontainer">
                 <canvas id="cv" *ngIf="!this.pictureLoading"></canvas>
                 <button mat-button (click)="previousCopy()"class="back-button2"><mat-icon>arrow_back_ios</mat-icon></button>

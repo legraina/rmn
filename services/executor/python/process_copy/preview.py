@@ -63,7 +63,7 @@ class PreviewHandler:
             x1 = int(box[1] * img.shape[1])
             y0 = int(box[2] * img.shape[0])
             y1 = int(box[3] * img.shape[0])
-            cv2.rectangle(img, (x0, y0), (x1, y1), self.BLUE, 10)
+            cv2.rectangle(img, (x0, y0), (x1, y1), self.BLUE, 8)
             for c in boxes:
                 (x, y, w, h) = cv2.boundingRect(c)
                 cv2.rectangle(img, (x0 + x, y0 + y), (x0 + x + w, y0 + y + h), self.ORANGE, 5)

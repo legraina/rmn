@@ -509,58 +509,71 @@ if __name__ == "__main__":
 
         # check if any job is idle and dangling
         alive_times = {}
-        while True:
-            print("Check idle running jobs")
-            # search idle jobs
-            max_alive = datetime.utcnow() - timedelta(seconds=120)
-            jobs = collection_eval_jobs.find({
-                "job_status": Job_Status.RUN.value,
-                "alive_time": {"$lt": max_alive}
-            })
-            # requeue old idle jobs
-            old_idle_jobs = False
-            for j in jobs:
-                print("Resubmit job", j["job_id"])
-                # change status to ensure that a job is not resubmitted several times
-                res = collection_eval_jobs.update_one(
-                    {"job_id": j["job_id"], "job_status": Job_Status.RUN.value},
-                    {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
-                )
-                if res.matched_count > 0:
-                    d_json = {
-                        "user_id": j["user_id"],
-                        "job_id": j["job_id"],
-                        "job_type": "execution"
-                    }
-                    r.lpush("job_queue", json.dumps(d_json))
-                old_idle_jobs = True
+        try:
+            collection_check = db["check"]
+            locked = False
+            if collection_check.count_documents() == 0:
+                collection_check.insert_one({'locked': True})
+                locked = True
+            else:
+                res = collection_check.update_one({'locked': False}, {'$set': {'locked': True}})
+                locked = res.matched_count > 0
 
-            # continue if idle jobs
-            if old_idle_jobs:
-                break
+            if locked:
+                while True:
+                    print("Check idle running jobs")
+                    # search idle jobs
+                    max_alive = datetime.utcnow() - timedelta(seconds=120)
+                    jobs = collection_eval_jobs.find({
+                        "job_status": Job_Status.RUN.value,
+                        "alive_time": {"$lt": max_alive}
+                    })
+                    # requeue old idle jobs
+                    old_idle_jobs = False
+                    for j in jobs:
+                        print("Resubmit job", j["job_id"])
+                        # change status to ensure that a job is not resubmitted several times
+                        res = collection_eval_jobs.update_one(
+                            {"job_id": j["job_id"], "job_status": Job_Status.RUN.value},
+                            {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
+                        )
+                        if res.matched_count > 0:
+                            d_json = {
+                                "user_id": j["user_id"],
+                                "job_id": j["job_id"],
+                                "job_type": "execution"
+                            }
+                            r.lpush("job_queue", json.dumps(d_json))
+                        old_idle_jobs = True
 
-            # check if all running jobs are idle. If yes, sleep, otherwise break
-            print("Check alive running jobs")
-            jobs = collection_eval_jobs.find({
-                "job_status": Job_Status.RUN.value
-            })
-            all_jobs_idle = False
-            for j in jobs:
-                job_id = j["job_id"]
-                alive_t = alive_times.get(job_id, datetime.utcnow())
-                # check if alive_time has increased, and thus job is alived
-                if j["alive_time"] > alive_t:
+                    # continue if idle jobs
+                    if old_idle_jobs:
+                        break
+
+                    # check if all running jobs are idle. If yes, sleep, otherwise break
+                    print("Check alive running jobs")
+                    jobs = collection_eval_jobs.find({
+                        "job_status": Job_Status.RUN.value
+                    })
                     all_jobs_idle = False
-                    break
-                all_jobs_idle = True
-                alive_times[job_id] = j["alive_time"]
-            # if one job alive -> stop
-            if not all_jobs_idle:
-                print("All jobs are not idle.")
-                break
-            # otherwise, sleep
-            print("Sleep before checking again running jobs.")
-            time.sleep(5)
+                    for j in jobs:
+                        job_id = j["job_id"]
+                        alive_t = alive_times.get(job_id, datetime.utcnow())
+                        # check if alive_time has increased, and thus job is alived
+                        if j["alive_time"] > alive_t:
+                            all_jobs_idle = False
+                            break
+                        all_jobs_idle = True
+                        alive_times[job_id] = j["alive_time"]
+                    # if one job alive -> stop
+                    if not all_jobs_idle:
+                        print("All jobs are not idle.")
+                        break
+                    # otherwise, sleep
+                    print("Sleep before checking again running jobs.")
+                    time.sleep(5)
+        finally:
+            collection_check.update_one({'locked': True}, {'$set': {'locked': False}})
 
     except Exception as e:
         print(e)
