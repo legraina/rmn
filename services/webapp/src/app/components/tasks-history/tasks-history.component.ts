@@ -197,11 +197,10 @@ export class TasksHistoryComponent implements OnInit {
             }, (error) => {
               console.error(error);
             });
-          this.dataSource.data = this.tasksList;
-          this.dataSource.paginator = this.paginator;
-          this.dataSource.sort = this.sort;
         });
-
+        this.dataSource.data = this.tasksList;
+        this.dataSource.paginator = this.paginator;
+        this.dataSource.sort = this.sort;
       }, (error) => {
         console.error(error);
       });

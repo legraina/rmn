@@ -36,6 +36,15 @@ FRONT_PAGE_TEMP_FOLDER = ROOT_DIR.joinpath("front_page_temp")
 LATEX_INPUT_FILE = ROOT_DIR.joinpath("data.tex")
 
 
+def print_resp(f, user_id=None):
+    if user_id:
+        resp = f()
+    else:
+        resp = f()
+    print(resp.data)
+    return resp
+
+
 def check_token(form, role=None):
     # check if token provided
     if "token" not in form:
@@ -54,8 +63,9 @@ def check_token(form, role=None):
         ), None
     if ("user_id" in form and form["user_id"] != username) or \
             ("username" in form and form["username"] != username):
+        print(f"Error: token belongs to username {username}.")
         return Response(
-            response=json.dumps({"response": f"Error: token not valid. Please login."}),
+            response=json.dumps({"response": f"Error: token belongs to another username."}),
             status=400,
         ), None
 
@@ -70,7 +80,8 @@ def verify_token(role=None):
             resp, user_id = check_token(request.form, role)
             if resp:
                 return resp
-            return f(user_id)
+            print("token user_id", user_id)
+            return print_resp(f(), user_id)
         return __verify_token
     return _verify_token
 
@@ -81,6 +92,7 @@ def verify_share_token():
         def __verify_token(*args, **kwargs):
             # check if any token share token provided
             if "job_id" not in request.form:
+                print("Error: job_id not provided.")
                 return Response(
                     response=json.dumps({"response": f"Error: job_id not provided."}),
                     status=400,
@@ -91,14 +103,18 @@ def verify_share_token():
             # check if token valid
             resp, user_id = check_token(request.form)
             if resp is None:
-                print("user_id", user_id)
+                print("token user_id", user_id)
                 job = db["eval_jobs"].find_one({"job_id": job_id, "user_id": user_id})
                 if job is None:
+                    print(f"Error: job {job_id} for user {user_id} doesn't exist.")
+                    job = db["eval_jobs"].find_one({"job_id": job_id})
+                    if job:
+                        print("Found job:", job)
                     return Response(
                         response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
                         status=400
                     )
-                return f()
+                return print_resp(f())
             # check if any token share token provided
             if "share_token" not in request.form:
                 return Response(
@@ -114,7 +130,7 @@ def verify_share_token():
                     response=json.dumps({"response": f"Error: token not valid."}),
                     status=400,
                 )
-            return f()
+            return print_resp(f())
         return __verify_token
     return _verify_token
 
