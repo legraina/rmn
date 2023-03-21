@@ -5,7 +5,7 @@ class Job_Status(Enum):
     QUEUED = "QUEUED"
     RUN = "RUN"
     VALIDATION = "VALIDATION"
-    VALIDATING = "VALIDATING"
+    FINALIZING = "FINALIZING"
     ARCHIVED = "ARCHIVED"
     ERROR = "ERROR"
 

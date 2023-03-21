@@ -72,7 +72,7 @@ if __name__ == "__main__":
             # Set Job status to VALIDATION
             db.eval_jobs_collection().update_one(
                 {"job_id": job_id},
-                {"$set": {"job_status": Job_Status.VALIDATING.value}}
+                {"$set": {"job_status": Job_Status.FINALIZING.value}}
             )
 
             #
@@ -544,7 +544,7 @@ if __name__ == "__main__":
                         if j["job_status"] == Job_Status.RUN.value:
                             requeue(Job_Status.RUN.value, Job_Status.QUEUED.value)
                         else:
-                            requeue("validation", Job_Status.VALIDATING.value, Job_Status.VALIDATION.value)
+                            requeue(Job_Status.FINALIZING.value, Job_Status.VALIDATION.value)
                         old_idle_jobs = True
 
                     # continue if idle jobs

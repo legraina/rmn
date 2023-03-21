@@ -81,7 +81,7 @@ export class TasksHistoryComponent implements OnInit {
             case 'VALIDATION':
               status = 'Prêt à la vérification';
               break;
-            case 'VALIDATING':
+            case 'FINALIZING':
               status = 'Finalisation en cours';
               break;
             case 'ARCHIVED':
@@ -175,14 +175,14 @@ export class TasksHistoryComponent implements OnInit {
 
               let response = data["response"];
               response.forEach(y => {
-                if ((x.job_status === "RUN" && mapStatus.get(y.status) === 1) || (x.job_status === "VALIDATING" && mapStatus.get(y.status) === 2)) {
+                if ((x.job_status === "RUN" && mapStatus.get(y.status) === 1) || (x.job_status === "FINALIZING" && mapStatus.get(y.status) === 2)) {
                   lastN = y.document_index;
                   lastExecTime = y.exec_time;
                   lastStatus = y.status;
                 }
               });
 
-              if (x.job_status === "RUN" || x.job_status === "VALIDATING") {
+              if (x.job_status === "RUN" || x.job_status === "FINALIZING") {
                 x.job_estimation = Math.round((response[0].n_total_doc - lastN) * lastExecTime);
               }
               if (x.job_status === "QUEUED") {

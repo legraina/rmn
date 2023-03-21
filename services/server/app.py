@@ -36,15 +36,6 @@ FRONT_PAGE_TEMP_FOLDER = ROOT_DIR.joinpath("front_page_temp")
 LATEX_INPUT_FILE = ROOT_DIR.joinpath("data.tex")
 
 
-def print_resp(f, user_id=None):
-    if user_id:
-        resp = f()
-    else:
-        resp = f()
-    print(resp.data)
-    return resp
-
-
 def check_token(form, role=None):
     # check if token provided
     if "token" not in form:
@@ -81,7 +72,7 @@ def verify_token(role=None):
             if resp:
                 return resp
             print("token user_id", user_id)
-            return print_resp(f(), user_id)
+            return f(user_id)
         return __verify_token
     return _verify_token
 
@@ -103,7 +94,6 @@ def verify_share_token():
             # check if token valid
             resp, user_id = check_token(request.form)
             if resp is None:
-                print("token user_id", user_id)
                 job = db["eval_jobs"].find_one({"job_id": job_id, "user_id": user_id})
                 if job is None:
                     print(f"Error: job {job_id} for user {user_id} doesn't exist.")
@@ -114,7 +104,7 @@ def verify_share_token():
                         response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
                         status=400
                     )
-                return print_resp(f())
+                return f()
             # check if any token share token provided
             if "share_token" not in request.form:
                 return Response(
@@ -126,11 +116,12 @@ def verify_share_token():
             token = request.form["share_token"]
             job = db["eval_jobs"].find_one({"job_id": job_id, "share_token": token})
             if not job:
+                print("Error: share token not valid.")
                 return Response(
-                    response=json.dumps({"response": f"Error: token not valid."}),
+                    response=json.dumps({"response": f"Error: share token not valid."}),
                     status=400,
                 )
-            return print_resp(f())
+            return f()
         return __verify_token
     return _verify_token
 
@@ -471,7 +462,7 @@ def get_jobs(user_id):
             if job["job_status"] == Job_Status.RUN.value:
                 requeue(job["job_id"], Job_Status.RUN.value, Job_Status.QUEUED.value)
             else:
-                requeue(job["job_id"], "validation", Job_Status.VALIDATING.value, Job_Status.VALIDATION.value)
+                requeue(job["job_id"], Job_Status.FINALIZING.value, Job_Status.VALIDATION.value)
 
             res = collection.update_one(
                 {"job_id": job["job_id"], "job_status": Job_Status.RUN.value},
@@ -871,7 +862,6 @@ def validate(user_id):
 
     db = mongo["RMN"]
     collection = db["job_documents"]
-    collection_eval_jobs = db["eval_jobs"]
 
     # Create SocketIO connection
     sio = socketio_client()
@@ -880,7 +870,7 @@ def validate(user_id):
         json.dumps(
             {
                 "job_id": job_id,
-                "status": Job_Status.VALIDATING.value,
+                "status": Job_Status.FINALIZING.value,
                 "user_id": user_id,
             }
         ),

@@ -216,39 +216,6 @@ def convert_grade_box_config(list_grade_box):
     return {"grade": tuple(list_grade_box)}
 
 
-def grade_all2(
-    paths,
-    grades_csv,
-    box_matricule,
-    job_id,
-    user_id,
-    template_id,
-    dpi=300,
-    shape=(8.5, 11),
-):
-    try:
-        # Create SocketIO connection
-        sio = socketio_client()
-
-        # get max RAM
-        max_RAM_GB = int(os.getenv("MAX_RAM_GB", "1000"))
-
-        grade_all(
-            paths,
-            grades_csv,
-            box_matricule,
-            job_id,
-            user_id,
-            template_id,
-            sio,
-            dpi,
-            shape,
-            max_RAM_GB
-        )
-    finally:
-        sio.disconnect()
-
-
 def grade_all(
     paths,
     grades_csv,
@@ -256,24 +223,21 @@ def grade_all(
     job_id,
     user_id,
     template_id,
-    sio,
     dpi=300,
     shape=(8.5, 11),
-    max_RAM_GB=1000
 ):
     db = Database()
     box_list, box_matricule_list = db.get_template_info(template_id)
-
     box_matricule = (
         convert_to_box_config(box_matricule_list)
         if box_matricule_list is not None
         else box_matricule_default
     )
-
     box = convert_grade_box_config(box_list)
+
     # load csv
     grades_dfs, grades_names = load_csv(grades_csv)
-    print(job_id)
+
     # load max grade if available
     max_grade = None
     for df in grades_dfs:
@@ -299,17 +263,24 @@ def grade_all(
     job = db.update_job_status_to_run(job_id, names_mat_json)
     new_job = (job["retry"] == 0)
     if new_job:
-        print("New job:", job_id)
-        sio.emit(
-            "jobs_status",
-            json.dumps(
-                {"job_id": job_id, "user_id": user_id, "status": Job_Status.RUN.value}
-            ),
-        )
+        try:
+            # Create SocketIO connection
+            sio = socketio_client()
+            print("Grade new job:", job_id)
+            sio.emit(
+                "jobs_status",
+                json.dumps(
+                    {"job_id": job_id, "user_id": user_id, "status": Job_Status.RUN.value}
+                ),
+            )
+        finally:
+            sio.disconnect()
+    else:
+        print("Retry grading old job:", job_id)
 
     # Create DB entry for each pdf file
     print("Retrieving files to grade and initializing entry in Mongo")
-    counter = 0
+    doc_index = 0
     g_files = []
     for path in paths:
         for root, dirs, files in os.walk(path):
@@ -321,31 +292,23 @@ def grade_all(
                     continue
                 g_files.append(file)
                 if new_job:
-                    db.insert_document(
-                        job_id,
-                        counter,
-                        [],
-                        0,
-                        "",
-                        Document_Status.NOT_READY,
-                        "",
-                        0,
-                        0,
-                        f,
-                    )
-                counter += 1
+                    db.insert_document(job_id, doc_index, [], 0, "",
+                                       Document_Status.NOT_READY, "", 0, f)
+                doc_index += 1
     db.close()
 
     if not os.path.exists(DIRPATH):
         os.makedirs(DIRPATH)
 
-    counter = 0
+    # get max RAM
+    max_RAM_GB = int(os.getenv("MAX_RAM_GB", "1000"))
+    doc_index = 0
     batch = 1
     matricules_data = {}
     q_results = Queue()
-    while counter < len(g_files):
+    while doc_index < len(g_files):
         # grade file in a different process
-        g_args = (g_files[counter:], counter, grades_csv, max_grade,
+        g_args = (g_files[doc_index:], doc_index, grades_csv, max_grade,
                   job_id, user_id,
                   box_matricule, box, matricules_data,
                   dpi, shape, max_RAM_GB, q_results)
@@ -355,11 +318,11 @@ def grade_all(
         p.start()
         p.join()
 
-        # counter = grade_files(*g_args)
+        # doc_index = grade_files(*g_args)
 
         # Getting usage of virtual_memory in GB ( 4th field)
-        counter, matricules_data = q_results.get()
-        print(counter, "files have been processed.")
+        doc_index, matricules_data = q_results.get()
+        print(doc_index, "files have been processed.")
         print('RAM Used - end batch', batch, '(GB):', psutil.virtual_memory()[3] / 1000000000)
         batch += 1
     q_results.close()
@@ -377,11 +340,11 @@ def grade_all(
                 continue
             if s.startswith(MF.status_start_filter):
                 n += 1
-    if n > 0 and n != counter:
+    if n > 0 and n != doc_index:
         print(
             Fore.RED
             + "%d copies have been uploaded on moodle, but %d have been graded"
-            % (n, counter)
+            % (n, doc_index)
             + Style.RESET_ALL
         )
 
@@ -417,7 +380,7 @@ def grade_all(
 
 def grade_files(
         files,
-        counter,
+        doc_index,
         grades_csv,
         max_grade,
         job_id,
@@ -453,15 +416,15 @@ def grade_files(
 
         for file in files:
             # check if document has already been processed
-            doc = db.get_document(job_id, counter)
+            doc = db.get_document(job_id, doc_index)
             if doc and doc['status'] != Document_Status.NOT_READY.value:
-                print("Document", counter, "is ready with status", doc['status'])
+                print("Document", doc_index, "is ready with status", doc['status'])
                 m = doc["matricule"]
                 if m not in matricules_data:
                     matricules_data[m] = [file]
                 else:
                     matricules_data[m].append(file)
-                counter += 1
+                doc_index += 1
                 continue
 
             # Start timer
@@ -548,7 +511,7 @@ def grade_files(
                 print(numbers)
 
                 db.save_unverified_number_images(
-                    job_id, counter, number_images[:-1]
+                    job_id, doc_index, number_images[:-1]
                 )
                 number_images.clear()  # delete numbers picture
 
@@ -609,7 +572,7 @@ def grade_files(
             print(f"src: {src}")
             # DB update
 
-            image_id = db.save_preview_image(src, job_id, counter)
+            image_id = db.save_preview_image(src, job_id, doc_index)
             doc_status = (
                 Document_Status.HIGH_ACCURACY
                 if total_matched and is_matricule_valid
@@ -622,9 +585,9 @@ def grade_files(
 
             exec_time = time.time() - start_time
 
-            db.update_document(
+            if not db.update_document(
                 job_id,
-                counter,
+                doc_index,
                 subquestions,
                 numbers[-1],
                 image_id,
@@ -632,8 +595,8 @@ def grade_files(
                 m,
                 exec_time,
                 max_nb_question,
-                group
-            )
+                group):
+                raise KeyError(f"Document {doc_index} was not found.")
 
             sio.emit(
                 "document_ready",
@@ -641,15 +604,15 @@ def grade_files(
                     {
                         "job_id": job_id,
                         "user_id": user_id,
-                        "document_index": counter,
+                        "document_index": doc_index,
                         "execution_time": exec_time,
                         "status": doc_status.value,
-                        "n_total_doc": counter + 1,
+                        "n_total_doc": doc_index + 1,
                     }
                 ),
             )
 
-            counter += 1
+            doc_index += 1
 
             # Getting usage of virtual_memory in GB ( 4th field)
             RAM_used = psutil.virtual_memory()[3] / 1000000000
@@ -671,9 +634,9 @@ def grade_files(
         grades_dfs[i].to_csv(f)
 
     if q_results:
-        q_results.put((counter, matricules_data))
+        q_results.put((doc_index, matricules_data))
 
-    return counter
+    return doc_index
 
 
 def compare_all(paths, grades_csv, box, dpi=300, shape=(8.5, 11)):

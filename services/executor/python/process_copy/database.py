@@ -97,7 +97,7 @@ class Database:
                     "group": group
                 }
             },
-        )
+        ).matched_count > 0
 
     def get_job_max_questions(self, job_id):
         doc = self.eval_jobs_collection().find_one({"job_id": job_id})
