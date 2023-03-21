@@ -210,7 +210,6 @@ class UserService:
         users = collection.find()
         return [u['username'] for u in users]
 
-
     def change_password(request, database, verify_old_password):
         request_form = request.form
         if "username" not in request_form:

@@ -454,6 +454,7 @@ if __name__ == "__main__":
             db.jobs_output_collection().insert_one(
                 {
                     "job_id": job_id,
+                    "user_id": user_id,
                     "notes_csv_file_id": notes_csv_file_id,
                     "preview_file_id": "None",
                     "moodle_zip_id_list": moodle_zip_id_list,
