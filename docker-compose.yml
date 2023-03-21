@@ -1,47 +1,48 @@
-version: '3'
 services:
   redis:
     image: redis:4.0.6-alpine
     restart: always
-    # ports:
-    #   - "6379:6379"
+    ports:
+      - "6379:6379"
   mongo:
     image: mongo:6.0.3
     restart: always
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_USERNAME: adminuser
       MONGO_INITDB_ROOT_PASSWORD: example
-    volumes:
-      - mongodata:/data/db
     ports:
       - "27017:27017"
   executor:
     build: ./services/executor
-    image: rmni/executor:latest
     restart: unless-stopped
     # ports:
     #   - "5001:5001"
     volumes:
-      - ./services/executor:/Executor
+      - ./storage:/Executor/storage
     depends_on:
       - redis
   server:
     build: ./services/server
-    image: rmni/server:latest
     restart: unless-stopped
     # ports:
     #   - "5000:5000"
-    # network_mode: "host"
     depends_on:
       - redis
     volumes:
-      - ./services/server:/server
+      - ./storage:/Server/storage
   socketio:
     build: ./services/socketIO
-    image: rmni/socketio:latest
     restart: unless-stopped
-    # ports:
-    #   - '7000:7000'
+    ports:
+      - '7000:7000'
     # network_mode: "host"
-    volumes:
-      - ./services/socketIO:/SocketIO
+  webapp:
+    build: ./services/webapp
+    restart: unless-stopped
+  nginx:
+    build: ./services/nginx
+    restart: unless-stopped
+    ports:
+      - 80:80
+volumes:
+  storage:

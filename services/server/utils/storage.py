@@ -12,7 +12,7 @@ def create_tree(file_path):
 
 
 class Storage:
-    def __init__(self, storage_path = None):
+    def __init__(self, storage_path=None):
         if storage_path:
             self.path = Path(storage_path)
         elif os.getenv('STORAGE'):

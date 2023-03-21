@@ -11,13 +11,14 @@ def create_tree(file_path):
 
 
 class Storage:
-    def __init__(self, storage_path = None):
+    def __init__(self, storage_path=None):
         if storage_path:
             self.path = Path(storage_path)
         elif os.getenv('STORAGE'):
             self.path = Path(os.getenv('STORAGE'))
         else:
-            self.path = ROOT_DIR.joinpath("storage")
+            ROOT_DIR_PROJECT = ROOT_DIR.parent.parent
+            self.path = ROOT_DIR_PROJECT.joinpath("storage")
 
     def abs_path(self, r_path):
         return str(self.path.joinpath(r_path))

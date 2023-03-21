@@ -1,18 +1,15 @@
-import redis
-import configparser
-from pymongo import MongoClient
 from pathlib import Path
 from python.process_copy.parser import parse_run_args
 from python.process_copy.recognize import get_date
 from python.process_copy.config import MoodleFields as MF
 from python.process_copy.mcc import group_label
+from python.process_copy.database import Database
 from utils.utils import Job_Status, Document_Status
 from utils.storage import Storage
 from utils.stop_handler import StopHandler
+from utils.clients import redis_client, socketio_client
 from zipfile import ZipFile
-import socketio
 
-import subprocess
 import os
 import shutil
 import json
@@ -23,16 +20,7 @@ from datetime import datetime, timedelta
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
-parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-parser.read(CONFIG_FILE)
 MAX_RETRY = int(os.getenv("MAX_RETRY", "5"))
-
-mongo_url = parser.get("MONGODB", "URL")
-redis_host = "redis" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
-socketio_host = (
-    "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
-)
 
 storage = Storage()
 
@@ -57,25 +45,20 @@ def save_number_images(job_id, document_index, questions):
 if __name__ == "__main__":
     # Connect to Mongo
     print("Setting up MongoClient...")
-    mongo_client = MongoClient(mongo_url)
-
-    db = mongo_client["RMN"]
-    collection = db["job_documents"]
-    collection_eval_jobs = db["eval_jobs"]
-    collection_output = db["jobs_output"]
-    collection_user = db["users"]
+    db = Database()
 
     # Create SocketIO connection
-    sio = socketio.Client()
-    sio.connect(f"http://{socketio_host}:7000")
+    sio = socketio_client()
 
     # create redis connection
-    r = redis.Redis(host=redis_host, port=6379, db=0)
+    redis = redis_client()
 
     def process(p_job, TMP_DIR):
         job_id = p_job["job_id"]
-        user_id = p_job["user_id"]
-        job_type = p_job["job_type"]
+        job = db.eval_jobs_collection().find_one({"job_id": job_id})
+        if not job:
+            raise KeyError(f"Job {job_id} not found in mongodb.")
+        user_id = job["user_id"]
 
         MOODLE_ZIP = TMP_DIR.joinpath("moodle.zip")
         MOODLE_FOLDER = TMP_DIR.joinpath("moodle")
@@ -83,16 +66,22 @@ if __name__ == "__main__":
         EXTRACT_FOLDER = TMP_DIR.joinpath("extract")
         VALIDATE_FOLDER = TMP_DIR.joinpath("validate")
 
-        stopH = StopHandler(collection_eval_jobs, job_id)
+        stopH = StopHandler(db.eval_jobs_collection(), job_id)
 
-        if job_type == "validation":
-            moodle_ind = bool(int(p_job["moodle_ind"]))
+        if job["job_status"] == Job_Status.VALIDATION.value:
+            # Set Job status to VALIDATION
+            db.eval_jobs_collection().update_one(
+                {"job_id": job_id},
+                {"$set": {"job_status": Job_Status.VALIDATING.value}}
+            )
+
             #
-            user = collection_user.find_one({"username": user_id})
+            user = db.users_collection().find_one({"username": user_id})
             save_verified_images = user["saveVerifiedImages"]
+            moodle_ind = bool(int(user["moodleStructureInd"]))
 
             #
-            output = collection_output.find_one({"job_id": job_id})
+            output = db.jobs_output_collection().find_one({"job_id": job_id})
             notes_csv_file_id = output["notes_csv_file_id"]
             moodle_zip_id_list = output["moodle_zip_id_list"]
 
@@ -117,7 +106,7 @@ if __name__ == "__main__":
             l_group = group_label(df)
 
             #
-            docs = collection.find({"job_id": job_id})
+            docs = db.documents_collection().find({"job_id": job_id})
 
             #
             print(f"Col: {df.columns}")
@@ -132,7 +121,7 @@ if __name__ == "__main__":
             df.to_csv(csv_file_path, mode="w+")
 
             #
-            collection.update_many(
+            db.documents_collection().update_many(
                 {"job_id": job_id},
                 {
                     "$set": {
@@ -176,7 +165,7 @@ if __name__ == "__main__":
                         ):
                             continue
 
-                        doc = collection.find_one({"job_id": job_id, "filename": str(f)})
+                        doc = db.documents_collection().find_one({"job_id": job_id, "filename": str(f)})
 
                         if doc is None:
                             continue
@@ -232,7 +221,7 @@ if __name__ == "__main__":
                         exec_time = time.time() - start_time
                         counter += 1
 
-                        collection.update_one(
+                        db.documents_collection().update_one(
                             {
                                 "job_id": job_id,
                                 "document_index": doc_idx,
@@ -291,7 +280,7 @@ if __name__ == "__main__":
                 storage.move_to(csv_file_path, n_csv)
 
                 #
-                collection_output.update_one(
+                db.jobs_output_collection().update_one(
                     {"job_id": job_id},
                     {"$set": {
                         "notes_csv_file_id": notes_csv_file_id,
@@ -299,7 +288,7 @@ if __name__ == "__main__":
                     }})
 
                 #
-                collection_eval_jobs.update_one(
+                db.eval_jobs_collection().update_one(
                     {"job_id": job_id},
                     {
                         "$set": {
@@ -321,7 +310,7 @@ if __name__ == "__main__":
                 )
             except Exception as e:
                 print("Error while moving file to storage")
-                collection_eval_jobs.update_one(
+                db.eval_jobs_collection().update_one(
                     {"job_id": job_id},
                     {
                         "$set": {
@@ -332,7 +321,7 @@ if __name__ == "__main__":
 
             # delete preview image
             print("Clean documents and unverified_numbers")
-            docs = collection.find({"job_id": job_id})
+            docs = db.documents_collection().find({"job_id": job_id})
             for doc in docs:
                 # delete unverified numbers for job
                 document_index = doc["document_index"] - 1
@@ -347,9 +336,9 @@ if __name__ == "__main__":
             except:
                 pass
 
-            collection.delete_many({"job_id": job_id})
+            db.documents_collection().delete_many({"job_id": job_id})
 
-        elif job_type == "execution":
+        elif job["job_status"] == Job_Status.QUEUED.value:
             # make directories
             MOODLE_FOLDER.mkdir(exist_ok=True)
             OUTPUT_FOLDER.mkdir(exist_ok=True)
@@ -357,13 +346,22 @@ if __name__ == "__main__":
 
             # Query job params
             print("Querying job details from Database...")
-            job_params = collection_eval_jobs.find_one({"job_id": job_id})
+            job_params = db.eval_jobs_collection().find_one({"job_id": job_id})
 
             if job_params is None:
                 print("No params found!")
                 return
 
             print(job_params)
+            db.eval_jobs_collection().update_one(
+                {"job_id": job_id},
+                {
+                    "$set": {
+                        "job_status": Job_Status.RUN.value,
+                        "alive_time": datetime.utcnow()
+                    }
+                }
+            )
 
             # Save notes.csv file to local
             storage.copy_from(job_params["notes_file_id"], str(OUTPUT_FOLDER.joinpath("notes.csv")))
@@ -412,7 +410,7 @@ if __name__ == "__main__":
                     raise e
 
                 # Error handling
-                collection_eval_jobs.update_one(
+                db.eval_jobs_collection().update_one(
                     {"job_id": job_id},
                     {"$set": {"job_status": Job_Status.ERROR.value}}
                 )
@@ -453,7 +451,7 @@ if __name__ == "__main__":
                 moodle_zip_id_list.append(moodle_zip_file_id)
                 i = i + 1
 
-            collection_output.insert_one(
+            db.jobs_output_collection().insert_one(
                 {
                     "job_id": job_id,
                     "notes_csv_file_id": notes_csv_file_id,
@@ -463,7 +461,7 @@ if __name__ == "__main__":
             )
 
             # Set Job status to VALIDATION
-            collection_eval_jobs.update_one(
+            db.eval_jobs_collection().update_one(
                 {"job_id": job_id}, {"$set": {"job_status": Job_Status.VALIDATION.value}}
             )
 
@@ -481,12 +479,12 @@ if __name__ == "__main__":
             storage.remove(f"csv/{job_id}.csv")
             storage.remove(f"zips/{job_id}.zip")
         else:
-            print(f"Type '{job_type}' not handled.")
+            print("Job status "+job["job_status"]+" not handled.")
 
     try:
         # retrieve job
         print("Retrieving job from redis")
-        job = r.lpop("job_queue")
+        job = redis.lpop("job_queue")
 
         # process job if any
         if job:
@@ -501,7 +499,9 @@ if __name__ == "__main__":
             # process job
             try:
                 process(job, WORK_TMP_DIR)
-            except:
+            except Exception as e:
+                print("Caught an error while processing job:")
+                print(e)
                 pass
 
             # clean
@@ -509,10 +509,10 @@ if __name__ == "__main__":
 
         # check if any job is idle and dangling
         alive_times = {}
+        collection_check = db.get_collection("check")
         try:
-            collection_check = db["check"]
             locked = False
-            if collection_check.count_documents() == 0:
+            if collection_check.count_documents({}) == 0:
                 collection_check.insert_one({'locked': True})
                 locked = True
             else:
@@ -524,26 +524,26 @@ if __name__ == "__main__":
                     print("Check idle running jobs")
                     # search idle jobs
                     max_alive = datetime.utcnow() - timedelta(seconds=120)
-                    jobs = collection_eval_jobs.find({
+                    jobs = db.eval_jobs_collection().find({
                         "job_status": Job_Status.RUN.value,
                         "alive_time": {"$lt": max_alive}
                     })
                     # requeue old idle jobs
                     old_idle_jobs = False
                     for j in jobs:
-                        print("Resubmit job", j["job_id"])
-                        # change status to ensure that a job is not resubmitted several times
-                        res = collection_eval_jobs.update_one(
-                            {"job_id": j["job_id"], "job_status": Job_Status.RUN.value},
-                            {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
-                        )
-                        if res.matched_count > 0:
-                            d_json = {
-                                "user_id": j["user_id"],
-                                "job_id": j["job_id"],
-                                "job_type": "execution"
-                            }
-                            r.lpush("job_queue", json.dumps(d_json))
+                        def requeue(c_status, n_status):
+                            print("Resubmit job", j["job_id"])
+                            # change status to ensure that a job is not resubmitted several times
+                            res = db.eval_jobs_collection().update_one(
+                                {"job_id": j["job_id"], "job_status": c_status},
+                                {"$inc": {"retry": 1}, "$set": {"job_status": n_status}}
+                            )
+                            if res.matched_count > 0:
+                                redis.lpush("job_queue", json.dumps({"job_id": j["job_id"]}))
+                        if j["job_status"] == Job_Status.RUN.value:
+                            requeue(Job_Status.RUN.value, Job_Status.QUEUED.value)
+                        else:
+                            requeue("validation", Job_Status.VALIDATING.value, Job_Status.VALIDATION.value)
                         old_idle_jobs = True
 
                     # continue if idle jobs
@@ -552,7 +552,7 @@ if __name__ == "__main__":
 
                     # check if all running jobs are idle. If yes, sleep, otherwise break
                     print("Check alive running jobs")
-                    jobs = collection_eval_jobs.find({
+                    jobs = db.eval_jobs_collection().find({
                         "job_status": Job_Status.RUN.value
                     })
                     all_jobs_idle = False
@@ -577,8 +577,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(e)
-
+    finally:
+        db.close()
+        sio.disconnect()
     print("Job end.")
-
-    mongo_client.close()
-    sio.disconnect()

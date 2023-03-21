@@ -1,60 +1,39 @@
 from service.template_service import TemplateService
 from service.user_service import UserService, Role
-from pymongo import MongoClient
 from flask import Flask, request, Response, json, send_file, after_this_request
 from flask_cors import CORS, cross_origin
 from werkzeug.utils import secure_filename
 from pathlib import Path
 from utils.utils import Job_Status, Output_File, Document_Status
 from utils.storage import Storage
+from utils.clients import redis_client, socketio_client, mongo_client
 from datetime import datetime, timedelta
 from io import FileIO
 from PyPDF2 import PdfWriter, PdfReader
 from service.front_page_service import FrontPageHandler
 from threading import Thread
 
-import configparser
 import uuid
 import os
-import redis
 import json
-import pandas as pd
-import pytz
-import socketio
 import shutil
 import time
 from functools import wraps
 
 
-ROOT_DIR = Path(__file__).resolve().parent
-
-TEMP_FOLDER = ROOT_DIR.joinpath("temp")
-
-VALIDATE_TEMP_FOLDER = ROOT_DIR.joinpath("validate_temp_folder")
-
-CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
-
-FRONT_PAGE_TEMP_FOLDER = ROOT_DIR.joinpath("front_page_temp")
-
-LATEX_INPUT_FILE = ROOT_DIR.joinpath("data.tex")
-
 app = Flask(__name__)
 cors = CORS(app)
 app.config["CORS_HEADERS"] = "Content-Type"
 
-parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-parser.read(CONFIG_FILE)
-mongo_url = parser.get("MONGODB", "URL")
-mongo_client = MongoClient(mongo_url)
-
-redis_host = "redis" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
-socketio_host = (
-    "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
-)
-
-r = redis.Redis(host=redis_host, port=6379, db=0)
-
+mongo = mongo_client()
+redis = redis_client()
 storage = Storage()
+
+ROOT_DIR = Path(__file__).resolve().parent
+TEMP_FOLDER = ROOT_DIR.joinpath("temp")
+VALIDATE_TEMP_FOLDER = ROOT_DIR.joinpath("validate_temp_folder")
+FRONT_PAGE_TEMP_FOLDER = ROOT_DIR.joinpath("front_page_temp")
+LATEX_INPUT_FILE = ROOT_DIR.joinpath("data.tex")
 
 
 def check_token(form, role=None):
@@ -65,7 +44,7 @@ def check_token(form, role=None):
             status=400,
         )
     # check if token valid
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     token = form['token']
     valid, username = UserService.verify_token(token, db, role)
     if not valid:
@@ -117,7 +96,7 @@ def verify_share_token():
                     status=400,
                 )
             # check if token valid
-            db = mongo_client["RMN"]
+            db = mongo["RMN"]
             job_id = request.form["job_id"]
             token = request.form["share_token"]
             job = db["eval_jobs"].find_one({"job_id": job_id, "share_token": token})
@@ -139,7 +118,7 @@ def say_hello():
 @app.route("/login", methods=["POST"])
 @cross_origin()
 def login():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.login(request, db)
 
 
@@ -147,7 +126,7 @@ def login():
 @cross_origin()
 @verify_token(Role.ADMIN)
 def signup():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.signup(request, db)
 
 
@@ -155,14 +134,14 @@ def signup():
 @cross_origin()
 @verify_token()
 def update_user():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.update_save_verified_images(request, db)
 
 @app.route("/updateMoodleStructureInd", methods=["PUT"])
 @cross_origin()
 @verify_token()
 def update_moodle_structure_ind():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.update_moodle_structure_ind(request, db)
 
 
@@ -170,7 +149,7 @@ def update_moodle_structure_ind():
 @cross_origin()
 @verify_token()
 def change_password():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.change_password(request, db, True)
 
 
@@ -238,7 +217,7 @@ def evaluate():
     nb_pages = int(request_form["nb_pages"])
 
     # Define db and collection used
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
 
     job_id = str(uuid.uuid4())
@@ -322,16 +301,13 @@ def evaluate():
         return Response(response=f"Error: Failed to download files.", status=900)
 
     # Create SocketIO connection
-    sio = socketio.Client()
-    sio.connect(f"http://{socketio_host}:7000")
-
+    sio = socketio_client()
     sio.emit(
         "jobs_status",
         json.dumps(
             {"job_id": job_id, "status": Job_Status.QUEUED.value, "user_id": user_id}
         ),
     )
-
     sio.disconnect()
 
     thread = Thread(target=evaluate_thread,
@@ -358,13 +334,8 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
     except Exception as e:
         print(e, "311")
 
-        # Create SocketIO connection
-        sio = socketio.Client()
-        sio.connect(f"http://{socketio_host}:7000")
-
-        db = mongo_client["RMN"]
+        db = mongo["RMN"]
         collection_eval_jobs = db["eval_jobs"]
-
         collection_eval_jobs.update_one(
                 {"job_id": job_id},
                 {
@@ -374,6 +345,8 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
                 },
             )
 
+        # Create SocketIO connection
+        sio = socketio_client()
         sio.emit(
             "jobs_status",
             json.dumps(
@@ -388,19 +361,14 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
         exit()
 
     # add to Redis Queue
-    queue_object = {
-        "job_type": "execution",
-        "job_id": job["job_id"],
-        "user_id": job["user_id"]
-    }
-    r.rpush("job_queue", json.dumps(queue_object))
+    redis.rpush("job_queue", json.dumps({"job_id": job["job_id"]}))
 
 
 @app.route("/template", methods=["POST"])
 @cross_origin()
 @verify_token()
 def create_template():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return TemplateService.create_template(request, db, storage)
 
 
@@ -408,7 +376,7 @@ def create_template():
 @cross_origin()
 @verify_token()
 def get_all_template_info():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return TemplateService.get_all_template_info(request, db)
 
 
@@ -416,7 +384,7 @@ def get_all_template_info():
 @cross_origin()
 @verify_token()
 def delete_template():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return TemplateService.delete_template(request, db, storage)
 
 
@@ -424,7 +392,7 @@ def delete_template():
 @cross_origin()
 @verify_token()
 def get_template_info():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return TemplateService.get_template_info(request, db)
 
 
@@ -432,7 +400,7 @@ def get_template_info():
 @cross_origin()
 @verify_token()
 def download_template():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return TemplateService.download_template_file(request, db, storage)
 
 
@@ -440,7 +408,7 @@ def download_template():
 @cross_origin()
 @verify_token()
 def modify_template():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return TemplateService.change_template_info(request, db)
 
 
@@ -449,7 +417,7 @@ def modify_template():
 @verify_token()
 def get_jobs():
     # Define db and collection used
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
 
     request_form = request.form
@@ -478,20 +446,28 @@ def get_jobs():
 
     # wake up workers in case some jobs died
     max_alive = datetime.utcnow() - timedelta(seconds=120)
+
+    def requeue(job_id, c_status, n_status):
+        print("Resubmit job", job_id)
+        # change status to ensure that a job is not resubmitted several times
+        res = collection.update_one(
+            {"job_id": job_id, "job_status": c_status},
+            {"$inc": {"retry": 1}, "$set": {"job_status": n_status}}
+        )
+        if res.matched_count > 0:
+           redis.lpush("job_queue", json.dumps({"job_id": job_id}))
+
     for job in jobs:
         if job["job_status"] == Job_Status.RUN.value and job["alive_time"] < max_alive:
+            if job["job_status"] == Job_Status.RUN.value:
+                requeue(job["job_id"], Job_Status.RUN.value, Job_Status.QUEUED.value)
+            else:
+                requeue(job["job_id"], "validation", Job_Status.VALIDATING.value, Job_Status.VALIDATION.value)
+
             res = collection.update_one(
                 {"job_id": job["job_id"], "job_status": Job_Status.RUN.value},
                 {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
             )
-            if res.matched_count > 0:
-                queue_object = {
-                    "job_type": "execution",
-                    "job_id": job["job_id"],
-                    "user_id": job["user_id"]
-                }
-                r.rpush("job_queue", json.dumps(queue_object))
-                break
 
     #
     return Response(response=json.dumps({"response": resp}), status=200)
@@ -502,7 +478,7 @@ def get_jobs():
 @verify_share_token()
 def get_job():
     # Define db and collection used
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
 
     request_form = request.form
@@ -543,7 +519,7 @@ def get_job():
 @verify_token()
 def share_job():
     # Define db and collection used
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
 
     request_form = request.form
@@ -592,7 +568,7 @@ def share_job():
 @verify_token()
 def unshare_job():
     # Define db and collection used
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
 
     request_form = request.form
@@ -658,7 +634,7 @@ def download_file():
         )
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     output_collection = db["jobs_output"]
 
     #
@@ -711,7 +687,7 @@ def get_info_zip():
     job_id = str(request_form["job_id"])
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     output_collection = db["jobs_output"]
 
     #
@@ -744,7 +720,7 @@ def get_documents():
         req["user_id"] = str(request_form["user_id"])
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["job_documents"]
 
     #
@@ -825,7 +801,7 @@ def update_document():
     total = float(request_form["total"])
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["job_documents"]
 
     req = {"job_id": job_id, "document_index": document_index}
@@ -869,7 +845,7 @@ def download_document():
     document_index = int(request_form["document_index"])
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     document_collection = db["job_documents"]
 
     req = {"job_id": job_id, "document_index": document_index}
@@ -922,30 +898,16 @@ def validate():
             status=400,
         )
 
-    if "moodle_ind" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: moodle_ind not provided."}),
-            status=400,
-        )
-
     #
     job_id = str(request_form["job_id"])
     user_id = str(request_form["user_id"])
-    moodle_ind = request_form["moodle_ind"]
 
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["job_documents"]
     collection_eval_jobs = db["eval_jobs"]
 
-    # Set Job status to VALIDATION
-    collection_eval_jobs.update_one(
-        {"job_id": job_id}, {"$set": {"job_status": Job_Status.VALIDATING.value}}
-    )
-
     # Create SocketIO connection
-    sio = socketio.Client()
-    sio.connect(f"http://{socketio_host}:7000")
-
+    sio = socketio_client()
     sio.emit(
         "jobs_status",
         json.dumps(
@@ -956,16 +918,11 @@ def validate():
             }
         ),
     )
+    sio.disconnect()
 
     # add to Redis Queue
-    queue_object = {
-        "job_type": "validation",
-        "job_id": job_id,
-        "user_id": user_id,
-        "moodle_ind": moodle_ind,
-    }
     try:
-        r.rpush("job_queue", json.dumps(queue_object))
+        redis.rpush("job_queue", json.dumps({"job_id": job_id}))
     except Exception as e:
         print(e)
         print("Failed to push job to Redis Queue.")
@@ -1018,7 +975,7 @@ def delete_job(job_id):
         print(e)
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["job_documents"]
     collection_eval_jobs = db["eval_jobs"]
     collection_output = db["jobs_output"]
@@ -1062,7 +1019,7 @@ def delete():
 
 
 def delete_old_jobs(n_days_old = 0, user_id = None):
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
     r = {} if user_id is None else {"user_id": user_id}
     jobs = collection.find(r)
@@ -1107,7 +1064,7 @@ def admin_delete_jobs():
 @app.route("/admin/signup", methods=["POST"])
 @cross_origin()
 def admin_signup():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.signup(request, db)
 
 
@@ -1121,12 +1078,13 @@ def admin_delete_tokens():
     elif "user_id" in request_form:
         user_id = str(request_form["user_id"])
     n_days_old = int(request_form["n_days_old"]) if "n_days_old" in request_form else 0
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     UserService.delete_tokens(user_id, n_days_old, db)
     return Response(
         response=json.dumps({"response": "OK"}),
         status=200
     )
+
 
 @app.route("/admin/delete/user", methods=["POST"])
 @cross_origin()
@@ -1147,7 +1105,7 @@ def admin_delete_user():
     delete_old_jobs(user_id=user_id)
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     TemplateService.delete_templates(user_id, db, storage)
     UserService.delete(user_id, db)
 
@@ -1158,7 +1116,7 @@ def admin_delete_user():
 @app.route("/admin/users", methods=["POST"])
 @cross_origin()
 def admin_users():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     all_users = UserService.users(db)
     return Response(response=json.dumps({"response": "OK", "users": all_users}), status=200)
 
@@ -1166,7 +1124,7 @@ def admin_users():
 @app.route("/admin/change_password", methods=["POST"])
 @cross_origin()
 def admin_change_password():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.change_password(request, db, False)
 
 
