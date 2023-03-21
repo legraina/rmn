@@ -50,10 +50,12 @@ export class TasksHistoryComponent implements OnInit {
     this.router.events
       .pipe(filter((event: NavigationStart) => event.navigationTrigger === 'popstate'))
       .subscribe(() => {
-        if (this.router.url === '/tasks-history') {
-          this.reroute();
-        }
-      });
+          if (this.router.url === '/tasks-history') {
+            this.reroute();
+          }
+        }, (error) => {
+          console.error(error);
+        });
   }
 
   async ngOnInit(): Promise<void> {
@@ -192,14 +194,17 @@ export class TasksHistoryComponent implements OnInit {
               } else {
                 x.job_completion = Math.round((lastN / response[0].n_total_doc) * 100);
               }
+            }, (error) => {
+              console.error(error);
             });
-
+          this.dataSource.data = this.tasksList;
+          this.dataSource.paginator = this.paginator;
+          this.dataSource.sort = this.sort;
         });
-        this.dataSource.data = this.tasksList;
-        this.dataSource.paginator = this.paginator;
-        this.dataSource.sort = this.sort;
-      });
 
+      }, (error) => {
+        console.error(error);
+      });
   }
 
   deleteJob(jobId: string): void {
@@ -212,6 +217,8 @@ export class TasksHistoryComponent implements OnInit {
         if (data['response'] === 'OK') {
           this.getTasks();
         }
+      }, (error) => {
+        console.error(error);
       });
   }
 
@@ -222,11 +229,13 @@ export class TasksHistoryComponent implements OnInit {
       data: {taskId: jobId, taskName: jobName}
     });
     dialogRef.afterClosed().subscribe(async result => {
-      if (result === false) {
-        const message = "Une erreur est intervenue lors du partage de la tâche !";
-        this.notificationService.showError(message, "Erreur!");
-      }
-    });
+        if (result === false) {
+          const message = "Une erreur est intervenue lors du partage de la tâche !";
+          this.notificationService.showError(message, "Erreur!");
+        }
+      }, (error) => {
+        console.error(error);
+      });
   }
 
   getTaskInfo(task: any) {
@@ -252,7 +261,8 @@ export class TasksHistoryComponent implements OnInit {
           height: '60%',
           data: { taskId: jobId, nbZipFile: nbZipFile }
         })
-
+      }, (error) => {
+        console.error(error);
       });
   }
 

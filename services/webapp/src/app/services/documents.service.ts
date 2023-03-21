@@ -35,7 +35,7 @@ export class DocumentsService {
         return a.localeCompare(b);
       });
     } catch (error) {
-      console.log(error);
+      console.error(error);
     }
   }
 

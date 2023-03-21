@@ -91,13 +91,14 @@ def verify_share_token():
             # check if token valid
             resp, user_id = check_token(request.form)
             if resp is None:
+                print("user_id", user_id)
                 job = db["eval_jobs"].find_one({"job_id": job_id, "user_id": user_id})
                 if job is None:
                     return Response(
                         response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
                         status=400
                     )
-                return f(user_id)
+                return f()
             # check if any token share token provided
             if "share_token" not in request.form:
                 return Response(
@@ -468,17 +469,12 @@ def get_jobs(user_id):
 @app.route("/job", methods=["POST"])
 @cross_origin()
 @verify_share_token()
-def get_job(user_id=None):
+def get_job():
     # Define db and collection used
     db = mongo["RMN"]
     collection = db["eval_jobs"]
 
     request_form = request.form
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400
-        )
     job_id = str(request_form["job_id"])
 
     # Get all jobs from DB
@@ -696,16 +692,8 @@ def get_info_zip(user_id):
 @app.route("/documents", methods=["POST"])
 @cross_origin()
 @verify_share_token()
-def get_documents(user_id=None):
+def get_documents():
     request_form = request.form
-
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400,
-        )
-
-    #
     job_id = str(request_form["job_id"])
 
     #
@@ -739,14 +727,8 @@ def get_documents(user_id=None):
 @app.route("/documents/update", methods=["POST"])
 @cross_origin()
 @verify_share_token()
-def update_document(user_id=None):
+def update_document():
     request_form = request.form
-
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400,
-        )
 
     if "document_index" not in request_form:
         return Response(
@@ -796,8 +778,7 @@ def update_document(user_id=None):
     #
     collection.update_one(
         {"job_id": job_id, "document_index": document_index},
-        {
-        "$set": {
+        {"$set": {
             "matricule": matricule,
             "subquestion_predictions": subquestion_predictions,
             "total": total,
@@ -811,15 +792,8 @@ def update_document(user_id=None):
 @app.route("/document/download", methods=["POST"])
 @cross_origin()
 @verify_share_token()
-def download_document(user_id=None):
-    #
+def download_document():
     request_form = request.form
-
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400,
-        )
 
     if "document_index" not in request_form:
         return Response(

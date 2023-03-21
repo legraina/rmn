@@ -51,6 +51,8 @@ export class TaskShareDialogComponent implements OnInit {
         } else {
           this.close(false);
         }
+      }, (error) => {
+        console.error(error);
       });
   }
 
@@ -66,6 +68,8 @@ export class TaskShareDialogComponent implements OnInit {
     this.http.post<any>(`${SERVER_URL}job/unshare`, formdata).subscribe(
       (data) => {
         this.close(data['response'] == "OK");
+      }, (error) => {
+        console.error(error);
       });
   }
 

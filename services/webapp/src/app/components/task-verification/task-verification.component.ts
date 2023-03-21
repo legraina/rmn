@@ -37,8 +37,8 @@ export class TaskVerificationComponent implements OnInit {
 
   job: Map<string, any>;
 
-  initialCopyIndex: number;
-  currentCopy: number;
+  initialCopyIndex: number = -1;
+  currentCopy: number = -1;
   currentMatricule: number;
   currentTotal: number;
   currentPredictions: Map<string, number>;
@@ -74,8 +74,6 @@ export class TaskVerificationComponent implements OnInit {
     if (this.job && this.job["job_id"]) {
       this.getMatriculeList();
       await this.getDocuments();
-      this.initialCopyIndex = this.examsList[0].document_index;
-      this.currentCopy = this.initialCopyIndex - 1;
       if (this.checkForAvailableCopies()) {
         this.nextCopy();
       }
@@ -130,6 +128,11 @@ export class TaskVerificationComponent implements OnInit {
     this.groupsList = this.docService.groupsList;
     // compute sub exams list if any selected group
     this.getSubExamsList();
+    // initialize initialCopyIndex and currentCopy
+    if (this.examsList.length > 0 && this.initialCopyIndex < 0) {
+      this.initialCopyIndex = this.examsList[0].document_index;
+      this.currentCopy = this.initialCopyIndex - 1;
+    }
   }
 
   getSubExamsList(): void {
@@ -177,8 +180,7 @@ export class TaskVerificationComponent implements OnInit {
           img.src = url;
           this.pictureLoading = false;
           img.onload = this.drawImageScaled.bind(null, img);
-        },
-        (error) => {
+        }, (error) => {
           console.error(error);
         });
     }
@@ -335,18 +337,21 @@ export class TaskVerificationComponent implements OnInit {
       height: '40%',
     })
     dialogRef.afterClosed().subscribe(async result => {
-      if (result !== undefined && result === true) {
-        this.disabledValidationcontainer = true;
-        this.validating = true;
-        let response = await this.validationService.validateJob(this.tasksService.getvalidatingTaskId(), this.userService.moodleStructureInd);
-        if (response === "OK") {
-          this.router.navigate(['/tasks-history']);
-          const message = "La tâche est en cours de finalisation!";
-          this.notificationService.showInfo(message, "Alerte!")
-          // this.openTaskFilesDialog(this.tasksService.getvalidatingTaskId());
+        if (result !== undefined && result === true) {
+          this.disabledValidationcontainer = true;
+          this.validating = true;
+          let response = await this.validationService.validateJob(
+            this.tasksService.getvalidatingTaskId(), this.userService.moodleStructureInd);
+          if (response === "OK") {
+            this.router.navigate(['/tasks-history']);
+            const message = "La tâche est en cours de finalisation!";
+            this.notificationService.showInfo(message, "Alerte!")
+            // this.openTaskFilesDialog(this.tasksService.getvalidatingTaskId());
+          }
         }
-      }
-    });
+      }, (error) => {
+        console.error(error);
+      });
   }
 
   changeMatricule(selection): void {
