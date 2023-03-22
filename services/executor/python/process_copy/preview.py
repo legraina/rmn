@@ -60,10 +60,10 @@ class PreviewHandler:
 
         # grade box
         if box:
-            x0 = int(mat_box[0] * img.shape[1])
-            x1 = int(mat_box[1] * img.shape[1])
-            y0 = int(mat_box[2] * img.shape[0])
-            y1 = int(mat_box[3] * img.shape[0])
+            x0 = int(box[0] * img.shape[1])
+            x1 = int(box[1] * img.shape[1])
+            y0 = int(box[2] * img.shape[0])
+            y1 = int(box[3] * img.shape[0])
             cv2.rectangle(img, (x0, y0), (x1, y1), self.BLUE, 10)
             for c in boxes:
                 (x, y, w, h) = cv2.boundingRect(c)

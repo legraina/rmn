@@ -71,7 +71,6 @@ def verify_token(role=None):
             resp, user_id = check_token(request.form, role)
             if resp:
                 return resp
-            print("token user_id", user_id)
             return f(user_id)
         return __verify_token
     return _verify_token
@@ -199,8 +198,6 @@ def evaluate(user_id):
             status=400,
         )
 
-    print(request.files)
-
     if not request.files:
         return Response(
             response=json.dumps({"response": f"Error: No files provided."}),
@@ -300,7 +297,6 @@ def evaluate(user_id):
             shutil.rmtree(str(folder_to_zip))
         else:
             with open(str(TEMP_FOLDER.joinpath(zip_file_name)), "wb") as f_out:
-                print("here")
                 file_content = zip_file.stream.read()
                 f_out.write(file_content)
 
@@ -340,7 +336,8 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
         file_name = str(TEMP_FOLDER.joinpath(notes_csv_file_name))
         storage.move_to(file_name, notes_file_id)
     except Exception as e:
-        print(e, "311")
+        print("Error when preparing job to be submitted for evaluation.")
+        print(e)
 
         db = mongo["RMN"]
         collection_eval_jobs = db["eval_jobs"]
@@ -644,8 +641,6 @@ def download_file(user_id):
 
     if target_file == Output_File.ZIP_FILE:
         zip_index = int(request_form["zip_index"])
-        print(output_files)
-        print(output_files[target_output_file])
         file_id = output_files[target_output_file][zip_index]
 
     if not os.path.exists(TEMP_FOLDER):
@@ -654,10 +649,7 @@ def download_file(user_id):
     # Save file to local
     filepath = str(TEMP_FOLDER.joinpath(file_id.split("/")[-1]))
     storage.copy_from(file_id, filepath)
-    print("file created")
-
     file_send = send_file(filepath)
-
     os.remove(filepath)
 
     return file_send
@@ -688,7 +680,6 @@ def get_info_zip(user_id):
             response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
             status=400
         )
-    print(output_files)
     #
     resp = len(output_files["moodle_zip_id_list"])
 
@@ -769,8 +760,6 @@ def update_document():
             status=400,
         )
 
-    print(request_form)
-
     #
     job_id = str(request_form["job_id"])
     document_index = int(request_form["document_index"])
@@ -826,7 +815,6 @@ def download_document():
 
     # Save file to local
     file_id = str(document_file["image_id"])
-    print("file_id", file_id)
     storage.copy_from(file_id, file_id)
     file_send = send_file(file_id)
 
@@ -1131,9 +1119,6 @@ def front_page(user_id):
     suffix = str(request_form["suffix"])
     moodle_zip = request.files.get("moodle_zip")
     latex_front_page = request.files.get("latex_front_page")
-
-    print(user_id)
-    print(suffix)
 
     if not os.path.exists(FRONT_PAGE_TEMP_FOLDER):
         os.makedirs(FRONT_PAGE_TEMP_FOLDER)
