@@ -434,6 +434,7 @@ def grade_files(
             filename = file.rsplit("/", 1)[-1]
             m = re.search(re_mat, filename)
             is_matricule_valid = True
+            use_mat_box = False
 
             # search matricule in forlder name
             # use folder name: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
@@ -456,7 +457,8 @@ def grade_files(
                 grays = gray_images(file, shape=shape)
                 if box_matricule is None:
                     raise Exception
-                m, id_box, id_group = find_matricule(
+                use_mat_box = True
+                m, id_box, id_csv = find_matricule(
                     grays,
                     box_matricule["front"],
                     box_matricule.get("regular"),
@@ -469,7 +471,7 @@ def grade_files(
                 if m not in matricules_data:
                     matricules_data[m] = []
                     # if no valid matricule has been found
-                    if m != "NA" and grades_dfs and id_group is None:
+                    if m != "NA" and grades_dfs and id_csv is None:
                         is_matricule_valid = False
                 elif m != "NA":
                     is_matricule_valid = False
@@ -492,18 +494,18 @@ def grade_files(
             )
 
             i, name = get_name(m, grades_dfs)
+            group = ""
             if i < 0:
                 print(
                     Fore.RED
                     + "%s: Matricule (%s) not found in csv files" % (filename, m)
                     + Style.RESET_ALL
                 )
-
-            group = ""
-            l_group = group_label(grades_dfs[i])
-            if l_group:
-                group = str(grades_dfs[i].at[m, l_group])
-                print("Group:", group)
+            else:
+                l_group = group_label(grades_dfs[i])
+                if l_group:
+                    group = str(grades_dfs[i].at[m, l_group])
+                    print("Group:", group)
 
             # fill moodle csv file
             if numbers and len(numbers) > 1:
@@ -568,7 +570,9 @@ def grade_files(
                 ]
             )
             results.append((f"Total: {numbers[-1]}", total_matched))
-            src = handler.createDocumentPreview(file, DIRPATH, results, dpi=dpi, box=box["grade"], boxes=boxes)
+            src = handler.createDocumentPreview(file, DIRPATH, results, dpi=dpi,
+                                                box=box["grade"], boxes=boxes,
+                                                mat_box=box_matricule["front"] if use_mat_box else None)
             print(f"src: {src}")
             # DB update
 

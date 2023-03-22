@@ -971,7 +971,7 @@ def delete(user_id):
     job_id = str(request_form["job_id"])
 
     db = mongo["RMN"]
-    collection = db["job_documents"]
+    collection = db["eval_jobs"]
     if collection.count_documents({"user_id": user_id, "job_id": job_id}) == 0:
         return Response(
             response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
