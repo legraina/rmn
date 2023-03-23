@@ -67,8 +67,6 @@ class FrontPageHandler:
         mat=None,
     ):
         # add front page if any
-        f = file.rsplit("/")[-1]
-        f_page = None
         try:
             f_page = self.create_front_page(
                 latex_front_page, latex_input_file, name, mat, work_directory
@@ -77,14 +75,14 @@ class FrontPageHandler:
             copy = fitz.Document(file)
             doc.insert_pdf(copy)
             doc.save(file, garbage=4, deflate=True)
-            os.rename(file, output_filename)
+            shutil.move(file, output_filename)
+            return True
         except Exception as e:
             traceback.print_exception(type(e), e, e.__traceback__)
             print(
                 Fore.RED + "Error when creating new pdf for %s" % file + Style.RESET_ALL
             )
             return False
-        return True
 
     def create_front_page(
         self,

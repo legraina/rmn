@@ -216,7 +216,7 @@ if __name__ == "__main__":
                             copies_path = copies_path.joinpath(str(group))
                             copies_path.mkdir(exist_ok=True)
                         dest = copies_path.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
-                        os.rename(str(file), str(dest))
+                        shutil.move(str(file), str(dest))
 
                         exec_time = time.time() - start_time
                         counter += 1

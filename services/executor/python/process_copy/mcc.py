@@ -73,7 +73,7 @@ def copy_file(file, dest):
 
     # rename it if necessary
     if old_name:
-        os.rename(os.path.join(folder, old_name), dest)
+        shutil.move(os.path.join(folder, old_name), dest)
 
 
 def copy_file_with_front_page(file, dfile, name=None, mat=None, latex_front_page=None):
