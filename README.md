@@ -38,6 +38,13 @@ Move to the deployment folder and run this command to start all services:
 kubectl apply -f .
 ```
 
+#### Minikube
+The folder used on the host path by the Mongo database and the NFS needs to be creted the first time:
+```
+minikuube ssh
+sudo mkdir -p /data/nfs /data/mongo
+```
+
 ### Persistent volume: NFS server
 WARNING: you need to mount a persistent volume that correspond to the path given to the nfs server, otherwise you will have an error as docker is not able to mount other paths for a nsf server. Furthermore, if using minikube, the path of the persistent volume needs also to be persistent in minikube: you can use a default persistent path like "/data" or any other path that has been mounted in minikube to communicate with the host.
 
