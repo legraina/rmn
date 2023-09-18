@@ -11,6 +11,7 @@ from utils.clients import redis_client, socketio_client
 from zipfile import ZipFile
 
 import os
+import re
 import shutil
 import json
 import pandas as pd
@@ -198,17 +199,22 @@ if __name__ == "__main__":
                         if moodle_ind:
                             # create folder
                             identifiant = df.at[matricule, MF.id]
-                            folder_name = f"{nom_complet}_{identifiant}_{matricule}_assignsubmission_file_"
-                            print("folder name", folder_name)
-                            m_folder = moodle_folder_path.joinpath(folder_name)
-                            m_folder.mkdir(exist_ok=True)
-                            print("folder path", str(m_folder))
+                            m_id = re.search('\\d+', identifiant)
+                            if not m_id:
+                                print("Moodle participant id not found in " + identifiant)
+                            else:
+                                identifiant = m_id.group()
+                                folder_name = f"{nom_complet}_{identifiant}_{matricule}_assignsubmission_file_"
+                                print("folder name", folder_name)
+                                m_folder = moodle_folder_path.joinpath(folder_name)
+                                m_folder.mkdir(exist_ok=True)
+                                print("folder path", str(m_folder))
 
-                            m_dest = m_folder.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
-                            print("destination", m_dest)
+                                m_dest = m_folder.joinpath(f"{nom}_{prenom}_{matricule}.pdf")
+                                print("destination", m_dest)
 
-                            # transfert file to folder
-                            shutil.copy(str(file), str(m_dest))
+                                # transfert file to folder
+                                shutil.copy(str(file), str(m_dest))
 
                         copies_path = all_copies_folder_path
                         if l_group:
