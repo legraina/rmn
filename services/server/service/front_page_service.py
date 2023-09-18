@@ -36,22 +36,28 @@ class FrontPageHandler:
 
             # rename it
             # use folder name: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
-            fullname, _id, matricule, _a, _f, _ = folder.split("_")
-            tempname = "_".join(fullname.split(" "))
-            name = os.path.join(
-                input_folder,
-                f"{tempname}_{str(matricule)}{f'_{suffix}.pdf' if suffix else file}",
-            )
+            try:
+                split_folder = folder.split("_")
+                fullname = split_folder[0]
+                matricule = split_folder[2]
+                tempname = "_".join(fullname.split(" "))
+                name = os.path.join(
+                    input_folder,
+                    f"{tempname}_{str(matricule)}{f'_{suffix}.pdf' if suffix else file}",
+                )
 
-            self.copy_file_with_front_page(
-                file_path,
-                latex_front_page,
-                latex_input_file,
-                work_directory,
-                name,
-                name=fullname,
-                mat=matricule,
-            )
+                self.copy_file_with_front_page(
+                    file_path,
+                    latex_front_page,
+                    latex_input_file,
+                    work_directory,
+                    name,
+                    name=fullname,
+                    mat=matricule,
+                )
+            except:
+                print(f"Error while processing {folder}")
+                raise
 
             # remove folder
             shutil.rmtree(str(folder_path))
