@@ -72,17 +72,8 @@ class Database:
         status,
         matricule,
         time,
-        max_nb_question,
         group
     ):
-        # update alive time stamp
-        self.eval_jobs_collection().update_one(
-            {"job_id": job_id},
-            {"$set": {
-                "alive_time": datetime.utcnow(),
-                "max_questions": max_nb_question
-            }}
-        )
         # return updated doc
         return self.documents_collection().update_one(
             {"job_id": job_id, "document_index": doc_index},
@@ -99,11 +90,37 @@ class Database:
             },
         ).matched_count > 0
 
+    def update_document_predictions(
+        self,
+        job_id,
+        doc_index,
+        subquestion_pred
+    ):
+        # return updated doc
+        return self.documents_collection().update_one(
+            {"job_id": job_id, "document_index": doc_index},
+            {
+                "$set": {
+                    "subquestion_predictions": subquestion_pred
+                }
+            },
+        ).matched_count > 0
+
     def get_job_max_questions(self, job_id):
         doc = self.eval_jobs_collection().find_one({"job_id": job_id})
-        if doc:
+        if doc and "max_questions" in doc:
             return doc["max_questions"]
-        return 1
+        return None
+
+    def set_job_max_questions(self, job_id, max_nb_question):
+        # update alive time stamp
+        self.eval_jobs_collection().update_one(
+            {"job_id": job_id},
+            {"$set": {
+                "alive_time": datetime.utcnow(),
+                "max_questions": max_nb_question
+            }}
+        )
 
     def update_job_status_to_run(self, job_id, students_list):
         # try to change job status if first try

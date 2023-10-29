@@ -40,8 +40,9 @@ import json
 import time
 import psutil
 from multiprocessing import Process, Queue
+from statistics import median
 
-from process_copy.config import re_mat, len_mat, known_mistmatch
+from process_copy.config import re_mat, len_mat, known_mistmatch, min_documents_for_max_questions
 from process_copy.config import MoodleFields as MF
 from process_copy.mcc import get_name, load_csv, group_label
 from process_copy.preview import PreviewHandler
@@ -309,6 +310,7 @@ def grade_all(
     while doc_index < len(g_files):
         # grade file in a different process
         g_args = (g_files[doc_index:], doc_index, grades_csv, max_grade,
+                  min_documents_for_max_questions,
                   job_id, user_id,
                   box_matricule, box, matricules_data,
                   dpi, shape, max_RAM_GB, q_results)
@@ -327,7 +329,7 @@ def grade_all(
         batch += 1
     q_results.close()
 
-    # check the number of files that have benn dropped on moodle if any
+    # check the number of files that have been dropped on moodle if any
     print("Store grades in csv")
     n = 0
     for df in grades_dfs:
@@ -383,6 +385,7 @@ def grade_files(
         doc_index,
         grades_csv,
         max_grade,
+        min_documents_for_max_questions,
         job_id,
         user_id,
         box_matricule,
@@ -401,7 +404,11 @@ def grade_files(
     # grades_data = []
     dt = get_date()
     trim = box["trim"] if "trim" in box else None
-    max_nb_question = db.get_job_max_questions(job_id)
+    max_nb_questions = db.get_job_max_questions(job_id)
+    n_docs = db.documents_collection().count_documents({"job_id": job_id})
+    if n_docs < min_documents_for_max_questions:
+        min_documents_for_max_questions = 0
+    print("Max number of questions:", max_nb_questions)
 
     shape = (int(dpi * shape[0]), int(dpi * shape[1]))
     # loading our CNN model
@@ -414,11 +421,13 @@ def grade_files(
         # Create SocketIO connection
         sio = socketio_client()
 
+        n_questions = {}
         for file in files:
             # check if document has already been processed
             doc = db.get_document(job_id, doc_index)
             if doc and doc['status'] != Document_Status.NOT_READY.value:
                 print("Document", doc_index, "is ready with status", doc['status'])
+                n_questions[doc_index] = list(doc["subquestion_predictions"].values())
                 m = doc["matricule"]
                 if m not in matricules_data:
                     matricules_data[m] = [file]
@@ -509,8 +518,7 @@ def grade_files(
 
             # fill moodle csv file
             if numbers and len(numbers) > 1:
-                max_nb_question = max(max_nb_question, len(numbers))
-                print(numbers)
+                print("Found numbers:", numbers)
 
                 db.save_unverified_number_images(
                     job_id, doc_index, number_images[:-1]
@@ -561,7 +569,11 @@ def grade_files(
 
             # Check there were no grades existing
             if not numbers or len(numbers) < 1:
-                numbers = [0] * max_nb_question
+                if max_nb_questions:
+                    numbers = [0] * (max_nb_questions + 1)
+                else:
+                    # come back later when max_nb_questions found
+                    numbers = [0]
 
             results.extend(
                 [
@@ -586,6 +598,7 @@ def grade_files(
                 f"Question {index_sub + 1}": sub
                 for index_sub, sub in enumerate(numbers[:-1])
             }
+            n_questions[doc_index] = numbers[:-1]
 
             exec_time = time.time() - start_time
 
@@ -598,7 +611,6 @@ def grade_files(
                 doc_status,
                 m,
                 exec_time,
-                max_nb_question,
                 group):
                 raise KeyError(f"Document {doc_index} was not found.")
 
@@ -622,16 +634,23 @@ def grade_files(
             RAM_used = psutil.virtual_memory()[3] / 1000000000
             print('RAM Used once grade found (GB):', RAM_used)
 
+            if max_nb_questions is None and numbers and len(n_questions) > min_documents_for_max_questions:
+                max_nb_questions = median(len(v) for v in n_questions.values())
+                db.set_job_max_questions(job_id, max_nb_questions)
+
+                # fix previous documents that were not with the right number of questions
+                for index, doc_questions in n_questions.items():
+                    if len(doc_questions) != max_nb_questions:
+                        doc_questions = fix_n_questions(db, job_id, index, max_nb_questions, doc_questions)
+
+                    n_questions[index] = doc_questions
+
             if RAM_used >= max_RAM_GB:
                 print('RAM limit exceeded')
                 break
     finally:
         sio.disconnect()
         db.close()
-
-    # raise error if cannot detect any grades in any copies
-    if max_nb_question == 1:
-        print("WARNING: Only one grade box has been found.")
 
     # store grades
     for i, f in enumerate(grades_csv):
@@ -813,6 +832,34 @@ def find_matricule(
             return mat, id_box, None
 
     return None, id_box, None
+
+
+def fix_n_questions(db, job_id, doc_index, max_nb_questions, predictions):
+    if len(predictions) == max_nb_questions:
+        return
+    # add zero at the beginning
+    if len(predictions) < max_nb_questions:
+        diff = max_nb_questions - len(predictions)
+        predictions = [0] * diff + predictions
+    else:
+        # try to remove 0 first
+        i = 0
+        while len(predictions) > max_nb_questions and i < len(predictions):
+            if predictions[i] == 0:
+                predictions.pop(i)
+            else:
+                i += 1
+        # remove values at the end
+        predictions = predictions[:max_nb_questions]
+
+    # update document
+    subquestions = {
+        f"Question {index_sub + 1}": sub
+        for index_sub, sub in enumerate(predictions)
+    }
+    db.update_document_predictions(job_id, doc_index, subquestions)
+
+    return predictions
 
 
 def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None, retry=0):

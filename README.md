@@ -94,7 +94,7 @@ They need to be run locally from the server (depending on nginx/ingress configur
 ##### Create a user
 Role can be either "Utilisateur" or "Administrateur":
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "password=test" --form "role=Administrateur" http://localhost/api/admin/signup
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "password=testtest" --form "role=Administrateur" http://localhost/api/admin/signup
 ```
 
 ##### Get all users
@@ -105,7 +105,7 @@ curl -X POST http://localhost/api/admin/users
 ##### Change user password
 Change a user's password without knowing the old one:
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "new_password=test2" http://localhost/api/admin/change_password
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "new_password=testtest" http://localhost/api/admin/change_password
 ```
 
 ##### Delete user

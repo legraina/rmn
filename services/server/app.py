@@ -242,7 +242,6 @@ def evaluate(user_id):
         "queued_time": datetime.utcnow(),
         "job_status": Job_Status.QUEUED.value,
         "retry": 0,
-        "max_questions": 1,
         "notes_file_id": notes_file_id,
         "zip_file_id": zip_file_id,
         "students_list": []
