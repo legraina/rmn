@@ -40,7 +40,16 @@ MB = 2**20
 
 
 def load_csv(grades_csv):
-    grades_dfs = [pd.read_csv(g, index_col=MF.mat) for g in grades_csv]
+    grades_dfs = []
+    for g in grades_csv:
+        df = pd.read_csv(g)
+        dup_index = [i for i, d in enumerate(df.duplicated(subset=[MF.mat])) if d]
+        if dup_index:
+            print("Remove duplicated:", df.iloc[dup_index])
+            df.drop(dup_index)
+            df.to_csv(g)
+        df.set_index(MF.mat)
+        grades_dfs.append(df)
     grades_names = [g.rsplit("/")[-1].split(".")[0] for g in grades_csv]
 
     for g in grades_dfs:
