@@ -46,10 +46,9 @@ def load_csv(grades_csv):
         dup_index = [i for i, d in enumerate(df.duplicated(subset=[MF.mat])) if d]
         if dup_index:
             print("Remove duplicated:", df.iloc[dup_index])
-            df.drop(dup_index)
+            df = df.drop(dup_index)
             df.to_csv(g)
-        df.set_index(MF.mat)
-        grades_dfs.append(df)
+        grades_dfs.append(df.set_index(MF.mat))
     grades_names = [g.rsplit("/")[-1].split(".")[0] for g in grades_csv]
 
     for g in grades_dfs:
