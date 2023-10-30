@@ -41,6 +41,7 @@ import time
 import psutil
 from multiprocessing import Process, Queue
 from statistics import median
+from copy import copy
 
 from process_copy.config import re_mat, len_mat, known_mistmatch, min_documents_for_max_questions
 from process_copy.config import MoodleFields as MF
@@ -54,6 +55,7 @@ from utils.clients import socketio_client
 DIRPATH = Path(__file__).resolve().parent.joinpath("documents")
 
 allowed_decimals = ["0", "25", "5", "75"]
+allowed_decimals_part = [.25, .5, .75]
 corrected_decimals = [
     "5",
     "75",
@@ -80,6 +82,15 @@ def refresh(dpi=300):
 
 
 refresh()
+
+
+def get_max_question(max_grade, max_nb_questions):
+    if max_grade is None:
+        return None
+    if max_nb_questions is None:
+        return max_grade
+    g = min(2, max_nb_questions) * max_grade / max_nb_questions
+    return g
 
 
 def find_matricules(paths, box, grades_csv=[], dpi=300, shape=(8.5, 11)):
@@ -422,6 +433,7 @@ def grade_files(
         sio = socketio_client()
 
         n_questions = {}
+        max_question = get_max_question(max_grade, max_nb_questions)
         for file in files:
             # check if document has already been processed
             doc = db.get_document(job_id, doc_index)
@@ -488,6 +500,9 @@ def grade_files(
             else:
                 m = m.group()
 
+            if m == '2182803' or m == '2091403' or m == '2054755':
+                bb = 1
+
             # try to recognize each grade and verify the total
             grays = gray_images(file, [0], straighten=False, shape=shape)
             if grays is None:
@@ -500,6 +515,7 @@ def grade_files(
                 classifier=classifier,
                 trim=trim,
                 max_grade=max_grade,
+                max_question=max_question
             )
 
             i, name = get_name(m, grades_dfs)
@@ -594,6 +610,7 @@ def grade_files(
                 if total_matched and is_matricule_valid
                 else Document_Status.TO_VALIDATE
             )
+            numbers[:-1] = try_fix_n_questions(max_nb_questions, numbers[:-1])
             subquestions = {
                 f"Question {index_sub + 1}": sub
                 for index_sub, sub in enumerate(numbers[:-1])
@@ -634,16 +651,39 @@ def grade_files(
             RAM_used = psutil.virtual_memory()[3] / 1000000000
             print('RAM Used once grade found (GB):', RAM_used)
 
-            if max_nb_questions is None and numbers and len(n_questions) > min_documents_for_max_questions:
+            if max_nb_questions is None and len(n_questions) > min_documents_for_max_questions:
                 max_nb_questions = median(len(v) for v in n_questions.values())
                 db.set_job_max_questions(job_id, max_nb_questions)
 
                 # fix previous documents that were not with the right number of questions
+                max_question = get_max_question(max_grade, max_nb_questions)
                 for index, doc_questions in n_questions.items():
-                    if len(doc_questions) != max_nb_questions:
-                        doc_questions = fix_n_questions(db, job_id, index, max_nb_questions, doc_questions)
+                    changed, doc_questions = try_fix_n_questions(max_nb_questions, doc_questions)
+                    changed2, doc_questions = try_fix_questions(max_question, doc_questions)
 
-                    n_questions[index] = doc_questions
+                    if changed or changed2:
+                        n_questions[index] = doc_questions
+                        # update document
+                        subquestions = {
+                            f"Question {index_sub + 1}": sub
+                            for index_sub, sub in enumerate(doc_questions)
+                        }
+                        db.update_document_predictions(job_id, index, subquestions)
+
+                        doc = db.get_document(job_id, index)
+                        sio.emit(
+                            "document_ready",
+                            json.dumps(
+                                {
+                                    "job_id": job_id,
+                                    "user_id": user_id,
+                                    "document_index": index,
+                                    "execution_time": doc["execution_time"],
+                                    "status": doc["status"],
+                                    "n_total_doc": doc_index,
+                                }
+                            ),
+                        )
 
             if RAM_used >= max_RAM_GB:
                 print('RAM limit exceeded')
@@ -834,10 +874,11 @@ def find_matricule(
     return None, id_box, None
 
 
-def fix_n_questions(db, job_id, doc_index, max_nb_questions, predictions):
-    if len(predictions) == max_nb_questions:
-        return
+def try_fix_n_questions(max_nb_questions, predictions):
+    if max_nb_questions is None or len(predictions) == max_nb_questions:
+        return predictions
     # add zero at the beginning
+    print("Try fixing the number of questions for:", predictions)
     if len(predictions) < max_nb_questions:
         diff = max_nb_questions - len(predictions)
         predictions = [0] * diff + predictions
@@ -852,17 +893,45 @@ def fix_n_questions(db, job_id, doc_index, max_nb_questions, predictions):
         # remove values at the end
         predictions = predictions[:max_nb_questions]
 
-    # update document
-    subquestions = {
-        f"Question {index_sub + 1}": sub
-        for index_sub, sub in enumerate(predictions)
-    }
-    db.update_document_predictions(job_id, doc_index, subquestions)
-
     return predictions
 
 
-def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None, retry=0):
+def try_fix_questions(max_question, predictions):
+    fixed = False
+    new_predictions = copy(predictions)
+    for i, p in enumerate(new_predictions):
+        if p > max_question:
+            while p > max_question:
+                p = p / 10
+            new_predictions[i] = correct_decimals(p)
+            fixed = True
+
+    # update document
+    if fixed:
+        print("Try fixing the number of questions for:", predictions, " by ", new_predictions)
+
+    return fixed, new_predictions
+
+
+def correct_decimals(p):
+    decimals = p % 1
+    # search for closest one
+    close_d = 0
+    for j, d in enumerate(allowed_decimals_part):
+        if d < decimals:
+            close_d = d
+        else:
+            # closer to close d
+            decimals = close_d if decimals - close_d < d - decimals else d
+            break
+    if j == len(allowed_decimals_part) - 1:
+        decimals = close_d
+    n = p // 1 + decimals
+    print("Correct decimals:", p, "->", n)
+    return n
+
+
+def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=None, max_question=None, retry=0):
     cropped = fetch_box(gray, box)
     print(f"box: {box}")
     print(f"cropped: {cropped}")
@@ -880,7 +949,7 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
                 box2 = (box[0]-.01, box[0]+.01, box[0]-.01, box[0]+.01)
                 return grade(gray, box2, classifier, add_border, trim, max_grade, retry-1)
             return False, [], cropped, number_images, boxes
-        box_img = cropped[y + 5 : y + h - 5, x + 5 : x + w - 5]
+        box_img = cropped[y + 5: y + h - 5, x + 5: x + w - 5]
         # check if need to trim
         n_trim = None
         if trim:
@@ -902,12 +971,20 @@ def grade(gray, box, classifier=None, add_border=False, trim=None, max_grade=Non
 
     # find all combination that works
     combinations = [(0, [])]
-    for numbers in all_numbers:
+    for i, numbers in enumerate(all_numbers):
         if len(numbers) == 0:
-            print("No valid number has been found for at least one of the box")
-            return False, [], cropped, number_images
-        c2 = [(c + p, l + [i]) for p, i in numbers for c, l in combinations]
-        print(f"C2: {c2}")
+            print("No valid number has been found for at least one of the box. Use 0 as default.")
+            numbers = [(1, 0)]
+        else:
+            for j, p in enumerate(numbers):
+                # try to move the dot (as it can be often misplaced)
+                max_g = max_question if i < len(all_numbers) - 1 else max_grade
+                if p[1] > max_g:
+                    g = p[1]
+                    while g > max_g:
+                        g = g / 10
+                    numbers[j] = (p[0], correct_decimals(g))
+        c2 = [(c + p, l + [j]) for p, j in numbers for c, l in combinations]
         combinations = c2
 
     print(f"Combinations: {combinations}")
