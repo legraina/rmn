@@ -38,6 +38,13 @@ Move to the deployment folder and run this command to start all services:
 kubectl apply -f .
 ```
 
+#### Minikube
+The folder used on the host path by the Mongo database and the NFS needs to be creted the first time:
+```
+minikuube ssh
+sudo mkdir -p /data/nfs /data/mongo
+```
+
 ### Persistent volume: NFS server
 WARNING: you need to mount a persistent volume that correspond to the path given to the nfs server, otherwise you will have an error as docker is not able to mount other paths for a nsf server. Furthermore, if using minikube, the path of the persistent volume needs also to be persistent in minikube: you can use a default persistent path like "/data" or any other path that has been mounted in minikube to communicate with the host.
 
@@ -87,7 +94,7 @@ They need to be run locally from the server (depending on nginx/ingress configur
 ##### Create a user
 Role can be either "Utilisateur" or "Administrateur":
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "password=test" --form "role=Administrateur" http://localhost/api/admin/signup
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "password=testtest" --form "role=Administrateur" http://localhost/api/admin/signup
 ```
 
 ##### Get all users
@@ -98,7 +105,7 @@ curl -X POST http://localhost/api/admin/users
 ##### Change user password
 Change a user's password without knowing the old one:
 ```
-curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "new_password=test2" http://localhost/api/admin/change_password
+curl -X POST -H "Content-Type:multipart/form-data" --form "username=admin" --form "new_password=testtest" http://localhost/api/admin/change_password
 ```
 
 ##### Delete user

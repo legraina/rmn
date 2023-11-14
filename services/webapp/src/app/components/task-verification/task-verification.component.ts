@@ -5,10 +5,10 @@ import { ValidationService } from 'src/app/services/validation.service';
 import { SocketService } from 'src/app/services/socket.service';
 import { NotificationService } from 'src/app/services/notification.service';
 import { HttpClient } from '@angular/common/http';
-import { TaskFilesDialogComponent } from '../tasks-history/task-files-dialog/task-files-dialog.component';
 import { ValidationWarningDialogComponent } from './validation-warning-dialog/validation-warning-dialog.component';
-import { Router } from '@angular/router';
+import { Router, ActivatedRoute } from '@angular/router';
 import { UserService } from 'src/app/services/user.service';
+import { DocumentsService } from 'src/app/services/documents.service';
 import { SERVER_URL } from 'src/app/utils';
 
 @Component({
@@ -25,18 +25,20 @@ export class TaskVerificationComponent implements OnInit {
     private http: HttpClient,
     public dialog: MatDialog,
     private router: Router,
-    private userService: UserService) { }
+    private route: ActivatedRoute,
+    private userService: UserService,
+    private docService: DocumentsService) { }
 
   pictureLoading: boolean = true;
-  disabledValidationButton = true;
   disabledValidationcontainer = true;
+  disabledValidationButton = true;
 
   validating: boolean = false;
 
   job: Map<string, any>;
 
-  initialCopyIndex: number;
-  currentCopy: number;
+  initialCopyIndex: number = -1;
+  currentCopy: number = -1;
   currentMatricule: number;
   currentTotal: number;
   currentPredictions: Map<string, number>;
@@ -47,63 +49,60 @@ export class TaskVerificationComponent implements OnInit {
   colorChosen: string;
 
   examsList: Array<any>;
+  subExamsList: Array<number>;
   matriculeList: Array<any>;
+  group: string;
+  groupsList: Array<string>;
 
   async ngOnInit(): Promise<any> {
-    this.socketService.initSocket(this.userService.currentUsername)
-    await this.getJob();
-    await this.getDocuments();
-    this.initialCopyIndex = this.examsList[0].document_index;
-    this.currentCopy = this.initialCopyIndex;
-    this.checkForAvailableCopies();
-    this.loadCopyInCanvas();
-    this.getMatriculeList();
-    this.getCurrentMatricule();
-    this.getCurrentTotal();
-    this.getCurrentPredictions();
-    this.getCurrentStatus();
-    this.setChosenColor(this.examsList[0]["status"]);
-
-    const taskList = await this.tasksService.getTaskById(this.examsList[0].job_id);
-
-
-    taskList.forEach((task: any) => {
-      if (task.job_id === this.examsList[0].job_id) {
-        this.disabledValidationButton = task.job_status !== 'VALIDATION';
+    // fetch query entries
+    let token = this.route.snapshot.queryParams['token'];
+    if (token) {
+      this.userService.setShareToken(token);
+    }
+    let jobId = this.route.snapshot.queryParams['job'];
+    if (jobId) {
+      this.tasksService.setvalidatingTaskId(jobId);
+    }
+    this.group = this.route.snapshot.queryParams['group'];
+    if (this.group == null) {
+      this.group = "";
+    }
+    this.groupsList = [this.group];
+    // fetch job and documents
+    this.job = await this.tasksService.getTask();
+    if (this.job && this.job["job_id"]) {
+      this.getMatriculeList();
+      await this.getDocuments();
+      if (this.checkForAvailableCopies()) {
+        this.nextCopy();
       }
-    });
+      this.checkValidationButton();
 
-    this.socketService.getSocket().on('document_ready', async (params: any) => {
+      this.socketService.join(this.job["job_id"]);
+      this.socketService.getSocket().on('document_ready', async (params: any) => {
+        await this.getDocuments();
+        if (this.disabledValidationcontainer) {
+          this.nextCopy();
+        }
+      });
 
-      let resp = JSON.parse(params)
-
-      let index = resp.document_index - this.initialCopyIndex;
-
-      this.examsList[index]["status"] = resp.status;
-      await this.getDocuments()
-      /*let message = "La copie numéro #" + String(resp.document_index) + " est prête à être vérifier!";*/
-      /*this.notificationService.showInfo(message, "Alerte!")*/
-      this.checkForAvailableCopies();
-
-      if (this.currentCopy === resp.document_index) {
-        this.loadCopyInCanvas();
-        this.getCurrentMatricule();
-        this.getCurrentTotal();
-        this.getCurrentPredictions();
-        this.getCurrentStatus();
+      if (this.userService.token) {
+        this.socketService.join(this.userService.currentUsername);
+        this.socketService.getSocket().on('jobs_status', async (params: any) => {
+          const resp = JSON.parse(params);
+          const jobId = resp.job_id;
+          if (this.job["job_id"] === jobId) {
+            this.job["job_status"] = resp.status;
+            this.checkValidationButton();
+          }
+        });
       }
-    });
-
-    this.socketService.getSocket().on('jobs_status', async (params: any) => {
-      const resp = JSON.parse(params);
-
-      const jobId = resp.job_id;
-      const jobStatus = resp.status;
-      console.log(this.examsList[0].job_id, jobId, this.examsList[0].job_id === jobId);
-      if (this.examsList[0].job_id === jobId) {
-        this.disabledValidationButton = jobStatus !== 'VALIDATION';
-      }
-    });
+    } else {
+      // reroute page
+      this.notificationService.showWarning('Veuillez sélectionner une tâche valide!', 'Tâche non disponible');
+      this.reroute();
+    }
   }
 
   ngOnDestroy(): void {
@@ -123,36 +122,51 @@ export class TaskVerificationComponent implements OnInit {
     event.target.select();
   }
 
-  async getJob() {
-    const formdata: FormData = new FormData();
-    formdata.append('job_id', this.tasksService.getvalidatingTaskId());
-    formdata.append('token', this.userService.token);
-
-    try {
-      const promise = await this.http.post<any>(`${SERVER_URL}job`, formdata).toPromise();
-      this.job = promise['response'];
-    } catch (error) {
-      console.log(error);
-    }
-  }
-
   async getDocuments() {
-    const formdata: FormData = new FormData();
-    formdata.append('job_id', this.tasksService.getvalidatingTaskId());
-    formdata.append('token', this.userService.token);
-
-    try {
-      const promise = await this.http.post<any>(`${SERVER_URL}documents`, formdata).toPromise();
-      this.examsList = promise['response'];
-    } catch (error) {
-      console.log(error);
+    await this.docService.getDocuments(this.tasksService.getvalidatingTaskId());
+    this.examsList = this.docService.documentsList;
+    this.groupsList = this.docService.groupsList;
+    // compute sub exams list if any selected group
+    this.getSubExamsList();
+    // initialize initialCopyIndex and currentCopy
+    if (this.examsList.length > 0 && this.initialCopyIndex < 0) {
+      this.initialCopyIndex = this.examsList[0].document_index;
+      this.currentCopy = this.initialCopyIndex - 1;
     }
   }
 
+  getSubExamsList(): void {
+    console.log("group", this.group)
+    if (this.group) {
+      let subExamsList = [];
+      this.examsList.forEach((exam: any) => {
+        if (exam['group'] == this.group) {
+          subExamsList.push(exam);
+        }
+      })
+      this.subExamsList = subExamsList;
+      console.log("sub exam list size for group", this.group, subExamsList.length, "/", this.examsList.length)
+    } else {
+      console.log("sub exam list is the full list of size", this.examsList.length)
+      this.subExamsList = this.examsList;
+    }
+  }
+
+  loadSubExamsList(): void {
+    this.getSubExamsList();
+    console.log("Group:", this.group, this.subExamsList.length, "exams")
+    // if any copy available
+    if (this.checkForAvailableCopies()) {
+      this.currentCopy = this.initialCopyIndex - 1;
+      this.nextCopy();
+    } else {
+      this.disabledValidationcontainer = true;
+    }
+  }
 
   loadCopyInCanvas() {
     const formdata: FormData = new FormData();
-    formdata.append('token', this.userService.token);
+    this.userService.addTokens(formdata);
     formdata.append('job_id', this.tasksService.getvalidatingTaskId());
     formdata.append('document_index', this.currentCopy.toString());
 
@@ -166,8 +180,7 @@ export class TaskVerificationComponent implements OnInit {
           img.src = url;
           this.pictureLoading = false;
           img.onload = this.drawImageScaled.bind(null, img);
-        },
-        (error) => {
+        }, (error) => {
           console.error(error);
         });
     }
@@ -189,15 +202,24 @@ export class TaskVerificationComponent implements OnInit {
 
   changeCurrentCopy(copyIndex, status) {
     if (status !== "NOT_READY") {
+      console.log("Change current copy to", copyIndex)
       this.currentCopy = copyIndex;
-      this.checkForAvailableCopies();
-      this.loadCopyInCanvas();
-      this.getCurrentMatricule();
-      this.getCurrentTotal();
-      this.getCurrentPredictions();
-      this.getCurrentStatus();
+      this.disabledValidationcontainer = false;
+      this.loadCopy();
       this.setChosenColor(status);
     }
+  }
+
+  changeCurrentExam(examIndex) {
+    this.changeCurrentCopy(this.initialCopyIndex + examIndex, this.examsList[examIndex].status);
+  }
+
+  loadCopy(): void {
+    this.loadCopyInCanvas();
+    this.getCurrentMatricule();
+    this.getCurrentTotal();
+    this.getCurrentPredictions();
+    this.getCurrentStatus();
   }
 
   setChosenColor(status: string): void {
@@ -212,22 +234,11 @@ export class TaskVerificationComponent implements OnInit {
     }
   }
 
-
-  checkForAvailableCopies() {
-    let counter = 0;
-    this.examsList.forEach((exam: any) => {
-      if (exam["status"] === "NOT_READY") {
-        counter += 1;
-      }
-    });
-
-    if (counter === this.examsList.length && !this.disabledValidationcontainer) {
-      this.disabledValidationcontainer = true;
-    }
-
-    if (this.examsList[this.currentIndex()]["status"] !== "NOT_READY") {
-      this.disabledValidationcontainer = false;
-    }
+  checkForAvailableCopies(): boolean {
+    if (this.subExamsList.length == 0) return false;
+    let exam = this.subExamsList.find((exam: any) => exam["status"] != "NOT_READY");
+    console.log("Found ready exam", exam)
+    return exam != undefined;
   }
 
   getMatriculeList() {
@@ -256,48 +267,19 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   getCurrentTotal() {
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy) {
-        this.currentTotal = parseFloat((exam["total"] as number).toFixed(2));
-      }
-    });
-
+    this.currentTotal = this.examsList[this.currentIndex()]["total"];
   }
 
   getCurrentPredictions() {
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy) {
-        this.currentPredictions = exam["subquestion_predictions"];
-      }
-    });
+    this.currentPredictions = this.examsList[this.currentIndex()]["subquestion_predictions"];
   }
 
   getCurrentStatus() {
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy) {
-        this.currentStatus = exam["status"];
-      }
-    });
-  }
-
-  checkNextCopy(index: number) {
-    let copyIsNotDisabled: boolean = false;
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === index) {
-        if (exam["status"] === "NOT_READY") {
-          copyIsNotDisabled = true;
-        }
-      }
-    });
-    return copyIsNotDisabled;
+    this.currentStatus = this.examsList[this.currentIndex()]["status"];
   }
 
   setValidatedStatus() {
-    this.examsList.forEach((exam: any) => {
-      if (exam["document_index"] === this.currentCopy) {
-        exam["status"] = "VALIDATED";
-      }
-    });
+    this.examsList[this.currentIndex()]["status"] = "VALIDATED";
   }
 
 
@@ -322,15 +304,9 @@ export class TaskVerificationComponent implements OnInit {
 
     if (response === "OK") {
       this.setValidatedStatus();
-      let newCopy = this.currentCopy + 1;
-      let newIndex = this.currentIndex() + 1;
-      if (newIndex < this.examsList.length && !this.checkNextCopy(newCopy)) {
-        this.changeCurrentCopy(newCopy, this.examsList[newIndex].status);
-      }
+      this.nextCopy();
     }
   }
-
-
 
   async validateJob() {
     let uncheckedcopy = 0;
@@ -355,42 +331,27 @@ export class TaskVerificationComponent implements OnInit {
     }
   }
 
-
-  openTaskFilesDialog(jobId: string): void {
-    const formdata: FormData = new FormData();
-    formdata.append('user_id', this.userService.currentUsername);
-    formdata.append('token', this.userService.token);
-    formdata.append('job_id', jobId);
-    this.http.post<any>(`${SERVER_URL}job/batch/info`, formdata).subscribe(
-      (data) => {
-        let nbZipFile = data['response']
-        this.dialog.open(TaskFilesDialogComponent, {
-          width: '30%',
-          height: '60%',
-          data: { taskId: jobId, nbZipFile: nbZipFile }
-        });
-      });
-  }
-
-
   openwarningDialog(): void {
     let dialogRef = this.dialog.open(ValidationWarningDialogComponent, {
       width: '30%',
       height: '40%',
     })
     dialogRef.afterClosed().subscribe(async result => {
-      if (result !== undefined && result === true) {
-        this.disabledValidationcontainer = true;
-        this.validating = true;
-        let response = await this.validationService.validateJob(this.tasksService.getvalidatingTaskId(), this.userService.moodleStructureInd);
-        if (response === "OK") {
-          this.router.navigate(['/tasks-history']);
-          const message = "La tâche est en cours de finalisation!";
-          this.notificationService.showInfo(message, "Alerte!")
-          // this.openTaskFilesDialog(this.tasksService.getvalidatingTaskId());
+        if (result !== undefined && result === true) {
+          this.disabledValidationcontainer = true;
+          this.validating = true;
+          let response = await this.validationService.validateJob(
+            this.tasksService.getvalidatingTaskId(), this.userService.moodleStructureInd);
+          if (response === "OK") {
+            this.router.navigate(['/tasks-history']);
+            const message = "La tâche est en cours de finalisation!";
+            this.notificationService.showInfo(message, "Alerte!")
+            // this.openTaskFilesDialog(this.tasksService.getvalidatingTaskId());
+          }
         }
-      }
-    });
+      }, (error) => {
+        console.error(error);
+      });
   }
 
   changeMatricule(selection): void {
@@ -453,18 +414,50 @@ export class TaskVerificationComponent implements OnInit {
   }
 
   previousCopy(): void {
-    const tempIndex = this.currentIndex() - 1;
+    let tempIndex = this.currentIndex() - 1;
+    while (tempIndex >= 0 && !this.subExamsList.includes(this.examsList[tempIndex])) {
+      tempIndex --;
+    }
+    console.log("Previous copy", tempIndex)
     if (tempIndex >= 0) {
-      this.changeCurrentCopy(this.currentCopy - 1, this.examsList[tempIndex].status);
+      this.changeCurrentExam(tempIndex);
     }
   }
 
   nextCopy(): void {
-    const tempIndex = this.currentIndex() + 1;
+    let tempIndex = this.nextCopyIndex();
+    console.log("Next copy", tempIndex)
     if (tempIndex < this.examsList.length) {
-      this.changeCurrentCopy(this.currentCopy + 1, this.examsList[tempIndex].status);
+      this.changeCurrentExam(tempIndex);
     }
   }
 
+  nextCopyIndex(): number {
+    let tempIndex = this.currentIndex() + 1;
+    while (tempIndex < this.examsList.length && !this.subExamsList.includes(this.examsList[tempIndex])) {
+      tempIndex ++;
+    }
+    return tempIndex;
+  }
+
+  loggued(): boolean {
+    return this.userService.loggued();
+  }
+
   sortNull(): void {}
+
+  showFilter(): boolean {
+    return this.loggued() && this.groupsList.length > 1;
+  }
+
+  filesListHeight(): string {
+    let height = 80;
+    if (!this.loggued()) height += 10;
+    if (!this.showFilter()) height += 10;
+    console.log("height", height+"%")
+    return height+"%";
+  }
+  checkValidationButton(): void {
+    this.disabledValidationButton = !this.job || this.job["job_status"] !== 'VALIDATION';
+  }
 }

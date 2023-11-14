@@ -25,15 +25,14 @@ class UserService:
         })
         return token
 
-
     def verify_token(token, database, role = None):
         collection = database["tokens"]
         tokenDB = collection.find_one({"token": token})
         if tokenDB is None:
-            return False
+            return False, ""
         if role is None:
-            return True
-        return tokenDB["role"] == role.value
+            return True, tokenDB["username"]
+        return tokenDB["role"] == role.value, tokenDB["username"]
 
     def delete_tokens(username, n_days_old, database):
        r = {}
@@ -210,7 +209,6 @@ class UserService:
         collection = database["users"]
         users = collection.find()
         return [u['username'] for u in users]
-
 
     def change_password(request, database, verify_old_password):
         request_form = request.form

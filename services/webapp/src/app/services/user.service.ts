@@ -1,16 +1,17 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { CanActivate, CanActivateChild, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
 import { SERVER_URL } from '../utils';
 
 
 @Injectable({
   providedIn: 'root'
 })
-export class UserService implements CanActivate {
+export class UserService implements CanActivate, CanActivateChild {
 
-  currentUsername: string = "bob2";
+  currentUsername: string;
   token: string;
+  shareToken: string;
   role: string;
   saveVerifiedImages: boolean = false;
   moodleStructureInd: boolean = false;
@@ -20,12 +21,27 @@ export class UserService implements CanActivate {
     this.currentUsername = localStorage.getItem('user_id')
     this.role = localStorage.getItem('role')
     this.token = localStorage.getItem('token')
+    this.shareToken = localStorage.getItem('shareToken')
 
     let saveImages = localStorage.getItem('saveVerifiedImages')
     this.saveVerifiedImages = (saveImages && saveImages != "undefined") ? JSON.parse(localStorage.getItem('saveVerifiedImages')) : false
 
     let moodleInd = localStorage.getItem('moodleStructureInd')
     this.moodleStructureInd = (moodleInd && moodleInd != "undefined") ? JSON.parse(localStorage.getItem('moodleStructureInd')) : false
+  }
+
+  setShareToken(shareToken: string): void {
+    this.shareToken = shareToken;
+    localStorage.setItem('shareToken', shareToken);
+  }
+
+  addTokens(form) {
+    if (this.token) {
+      form.append('token', this.token);
+    }
+    if (this.shareToken) {
+      form.append('share_token', this.shareToken);
+    }
   }
 
   login(username, password) {
@@ -72,8 +88,18 @@ export class UserService implements CanActivate {
     return this.http.put(url, formdata);
   }
 
+  loggued(): boolean {
+    return this.token != null;
+  }
+
   canActivate(route: ActivatedRouteSnapshot,
               state: RouterStateSnapshot): boolean {
-      return this.currentUsername != null;
+    return this.loggued();
+  }
+
+  canActivateChild(route: ActivatedRouteSnapshot,
+                   state: RouterStateSnapshot): boolean {
+    this.setShareToken(route.queryParams['token']);
+    return this.loggued() || this.shareToken != null;
   }
 }

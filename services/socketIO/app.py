@@ -21,7 +21,6 @@ def on_join(room):
     print(f"Joined room {room}")
 
 
-
 @socketio.on("leave")
 def on_leave(room):
     # client_type = Client_Type(room)
@@ -32,9 +31,9 @@ def on_leave(room):
 @socketio.on("document_ready")
 def handle_message(data):
     # emit("document_ready", data, to=Client_Type.WEB_CLIENT.value)
-    user_id = json.loads(data)["user_id"]
-    emit("document_ready", data, room=user_id)
-    print(f"Received data: {data} to room : {user_id}")
+    job_id = json.loads(data)["job_id"]
+    emit("document_ready", data, room=job_id)
+    print(f"Received data: {data} to room : {job_id}")
 
 
 @socketio.on("jobs_status")

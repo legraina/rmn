@@ -40,13 +40,28 @@ MB = 2**20
 
 
 def load_csv(grades_csv):
-    grades_dfs = [pd.read_csv(g, index_col=MF.mat) for g in grades_csv]
+    grades_dfs = []
+    for g in grades_csv:
+        df = pd.read_csv(g)
+        dup_index = [i for i, d in enumerate(df.duplicated(subset=[MF.mat])) if d]
+        if dup_index:
+            print("Remove duplicated:", df.iloc[dup_index])
+            df = df.drop(dup_index)
+            df.to_csv(g)
+        grades_dfs.append(df.set_index(MF.mat))
     grades_names = [g.rsplit("/")[-1].split(".")[0] for g in grades_csv]
 
     for g in grades_dfs:
         g.index = g.index.map(str)
 
     return grades_dfs, grades_names
+
+
+def group_label(df):
+    group_df = df.filter(regex=MF.group)
+    if group_df.shape[1] == 1:
+        return group_df.columns[0]
+    return None
 
 
 def copy_file(file, dest):
@@ -66,7 +81,7 @@ def copy_file(file, dest):
 
     # rename it if necessary
     if old_name:
-        os.rename(os.path.join(folder, old_name), dest)
+        shutil.move(os.path.join(folder, old_name), dest)
 
 
 def copy_file_with_front_page(file, dfile, name=None, mat=None, latex_front_page=None):

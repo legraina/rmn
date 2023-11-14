@@ -17,7 +17,7 @@ export class ValidationService {
 
   async validateDocument(jobId, validatingCopy, predictions, registration, total, status) {
     const formdata: FormData = new FormData();
-    formdata.append('token', this.userService.token);
+    this.userService.addTokens(formdata);
     formdata.append('job_id', jobId);
     formdata.append('document_index', validatingCopy.toString());
     formdata.append('subquestion_predictions', JSON.stringify(predictions));
@@ -30,7 +30,7 @@ export class ValidationService {
       const promise = await this.http.post<any>(`${SERVER_URL}documents/update`, formdata).toPromise();
       response = promise['response'];
     } catch (error) {
-      console.log(error);
+      console.error(error);
     }
     return response;
   }
@@ -46,9 +46,8 @@ export class ValidationService {
     try {
       const promise = await this.http.post<any>(`${SERVER_URL}job/validate`, formdata).toPromise();
       response = promise['response'];
-
     } catch (error) {
-      console.log(error);
+      console.error(error);
     }
     return response;
   }

@@ -11,8 +11,16 @@ def create_tree(file_path):
     os.makedirs(file_path.rsplit("/",1)[0], exist_ok=True)
 
 
+# use this method to avoid Invalid cross-device link error
+# https://stackoverflow.com/questions/42392600/oserror-errno-18-invalid-cross-device-link
+# shutil.move() seems to not detect the different filesystem
+def move(old_file, new_file):
+    shutil.copy(old_file, new_file)
+    os.remove(old_file)
+
+
 class Storage:
-    def __init__(self, storage_path = None):
+    def __init__(self, storage_path=None):
         if storage_path:
             self.path = Path(storage_path)
         elif os.getenv('STORAGE'):
@@ -30,7 +38,7 @@ class Storage:
         if not os.path.exists(l_file):
             raise ValueError("Storage can't find local file "+l_file)
         create_tree(s_abs_file)
-        shutil.move(l_file, s_abs_file)
+        move(l_file, s_abs_file)
 
     def copy_from(self, s_file, l_file):
         s_abs_file = self.abs_path(s_file)

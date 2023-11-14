@@ -17,10 +17,13 @@ export class TasksService {
   percentDone: number = 0;
   uploadPart1: boolean = false;
   uploadPart2: boolean = false;
-  constructor(private router: Router, private http: HttpClient, private userService: UserService, private notification: NotificationService) { }
+  constructor(private router: Router, private http: HttpClient, private userService: UserService, private notification: NotificationService) {
+    this.validatingTaskId = localStorage.getItem('job_id');
+  }
 
   setvalidatingTaskId(id: string) {
     this.validatingTaskId = id;
+    localStorage.setItem('job_id', id);
   }
 
   getvalidatingTaskId() {
@@ -78,11 +81,19 @@ export class TasksService {
 
   async getTaskById(jobId) {
     const formdata: FormData = new FormData();
-    formdata.append('user_id', this.userService.currentUsername);
-    formdata.append('token', this.userService.token);
+    formdata.append('job_id', jobId);
+    this.userService.addTokens(formdata);
 
-    const data = await this.http.post<any>(`${SERVER_URL}jobs`, formdata).toPromise();
+    const data = await this.http.post<any>(`${SERVER_URL}job`, formdata).toPromise();
     return data['response'];
+  }
+
+  async getTask() {
+    if (this.validatingTaskId) {
+      return this.getTaskById(this.validatingTaskId);
+    } else {
+      return null;
+    }
   }
 
   private showProgress(event: HttpEvent<any>) {

@@ -47,7 +47,7 @@ const routes: Routes = [
     {
         path: 'task-validation',
         component : TaskVerificationComponent,
-        canActivate: [UserService]
+        canActivateChild: [UserService]
     },
     {
         path: 'presentation-page',

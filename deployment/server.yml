@@ -55,5 +55,9 @@ spec:
           env:
             - name: STORAGE
               value: /mnt/storage
+            - name: MONGODB_USER
+              value: adminuser
+            - name: MONGODB_PASSWORD
+              value: example
           terminationMessagePolicy: FallbackToLogsOnError
       restartPolicy: Always

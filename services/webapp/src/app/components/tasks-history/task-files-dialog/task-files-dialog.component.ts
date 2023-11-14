@@ -1,6 +1,5 @@
 import { Component, OnInit, Inject } from '@angular/core';
-import { MatDialogRef } from '@angular/material/dialog';
-import { MAT_DIALOG_DATA} from '@angular/material/dialog';
+import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { NotificationService } from 'src/app/services/notification.service';
 import { UserService } from 'src/app/services/user.service';
 import { saveAs } from 'file-saver';

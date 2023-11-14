@@ -1,6 +1,7 @@
 # regex to find a matricule: 7 digits followed by not a number or the end of the line
 re_mat = '[1-2]\\d{6}(?=(?:\\D|$))'
 len_mat = 7
+min_documents_for_max_questions = 10
 
 grade_box = {
     "devoir": {
@@ -40,3 +41,4 @@ class MoodleFields:
     mdate = 'Dernière modification (note)'
     status = 'Statut'
     status_start_filter = 'Remis'
+    group = '(?i)(gr|groupe?s?)$'

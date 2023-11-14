@@ -1,0 +1,37 @@
+name: Publish All Docker images
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  push_executor_to_dockerhub:
+    uses: .github/workflows/docker-publish.yml@main
+    with:
+      image: rmni/executor
+      context: ./services/executor
+
+  push_server_to_dockerhub:
+    uses: .github/workflows/docker-publish.yml@main
+    with:
+      image: rmni/server
+      context: ./services/server
+
+  push_webapp_to_dockerhub:
+    uses: .github/workflows/docker-publish.yml@main
+    with:
+      image: rmni/webapp
+      context: ./services/webapp
+
+  push_socketio_to_dockerhub:
+    uses: .github/workflows/docker-publish.yml@main
+    with:
+      image: rmni/socketio
+      context: ./services/socketIO

@@ -1,78 +1,123 @@
 from service.template_service import TemplateService
 from service.user_service import UserService, Role
-from pymongo import MongoClient
 from flask import Flask, request, Response, json, send_file, after_this_request
 from flask_cors import CORS, cross_origin
 from werkzeug.utils import secure_filename
 from pathlib import Path
 from utils.utils import Job_Status, Output_File, Document_Status
 from utils.storage import Storage
+from utils.clients import redis_client, socketio_client, mongo_client
 from datetime import datetime, timedelta
 from io import FileIO
 from PyPDF2 import PdfWriter, PdfReader
 from service.front_page_service import FrontPageHandler
 from threading import Thread
 
-import configparser
 import uuid
 import os
-import redis
 import json
-import pandas as pd
-import pytz
-import socketio
 import shutil
 import time
 from functools import wraps
 
 
-ROOT_DIR = Path(__file__).resolve().parent
-
-TEMP_FOLDER = ROOT_DIR.joinpath("temp")
-
-VALIDATE_TEMP_FOLDER = ROOT_DIR.joinpath("validate_temp_folder")
-
-CONFIG_FILE = ROOT_DIR.joinpath("config").joinpath("config.ini")
-
-FRONT_PAGE_TEMP_FOLDER = ROOT_DIR.joinpath("front_page_temp")
-
-LATEX_INPUT_FILE = ROOT_DIR.joinpath("data.tex")
-
 app = Flask(__name__)
 cors = CORS(app)
 app.config["CORS_HEADERS"] = "Content-Type"
 
-parser = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-parser.read(CONFIG_FILE)
-mongo_url = parser.get("MONGODB", "URL")
-mongo_client = MongoClient(mongo_url)
-
-redis_host = "redis" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
-socketio_host = (
-    "socketio" if os.getenv("ENVIRONNEMENT") == "production" else "localhost"
-)
-
-r = redis.Redis(host=redis_host, port=6379, db=0)
-
+mongo = mongo_client()
+redis = redis_client()
 storage = Storage()
+
+ROOT_DIR = Path(__file__).resolve().parent
+TEMP_FOLDER = ROOT_DIR.joinpath("temp")
+VALIDATE_TEMP_FOLDER = ROOT_DIR.joinpath("validate_temp_folder")
+FRONT_PAGE_TEMP_FOLDER = ROOT_DIR.joinpath("front_page_temp")
+LATEX_INPUT_FILE = ROOT_DIR.joinpath("data.tex")
+
+
+def check_token(form, role=None):
+    # check if token provided
+    if "token" not in form:
+        return Response(
+            response=json.dumps({"response": f"Error: token not provided."}),
+            status=400,
+        ), None
+    # check if token valid
+    db = mongo["RMN"]
+    token = form['token']
+    valid, username = UserService.verify_token(token, db, role)
+    if not valid:
+        return Response(
+            response=json.dumps({"response": f"Error: token not valid. Please login."}),
+            status=400,
+        ), None
+    if ("user_id" in form and form["user_id"] != username) or \
+            ("username" in form and form["username"] != username):
+        print(f"Error: token belongs to username {username}.")
+        return Response(
+            response=json.dumps({"response": f"Error: token belongs to another username."}),
+            status=400,
+        ), None
+
+    return None, username
 
 
 def verify_token(role=None):
     def _verify_token(f):
         @wraps(f)
         def __verify_token(*args, **kwargs):
-            # check if token provided
-            if "token" not in request.form:
+            # check if token valid
+            resp, user_id = check_token(request.form, role)
+            if resp:
+                return resp
+            return f(user_id)
+        return __verify_token
+    return _verify_token
+
+
+def verify_share_token():
+    def _verify_token(f):
+        @wraps(f)
+        def __verify_token(*args, **kwargs):
+            # check if any token share token provided
+            if "job_id" not in request.form:
+                print("Error: job_id not provided.")
+                return Response(
+                    response=json.dumps({"response": f"Error: job_id not provided."}),
+                    status=400,
+                )
+            job_id = request.form["job_id"]
+            db = mongo["RMN"]
+
+            # check if token valid
+            resp, user_id = check_token(request.form)
+            if resp is None:
+                job = db["eval_jobs"].find_one({"job_id": job_id, "user_id": user_id})
+                if job is None:
+                    print(f"Error: job {job_id} for user {user_id} doesn't exist.")
+                    job = db["eval_jobs"].find_one({"job_id": job_id})
+                    if job:
+                        print("Found job:", job)
+                    return Response(
+                        response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
+                        status=400
+                    )
+                return f()
+            # check if any token share token provided
+            if "share_token" not in request.form:
                 return Response(
                     response=json.dumps({"response": f"Error: token not provided."}),
                     status=400,
                 )
-            # check if token valid
-            db = mongo_client["RMN"]
-            token = request.form['token']
-            if not UserService.verify_token(token, db, role):
+            # check if share token valid
+            db = mongo["RMN"]
+            token = request.form["share_token"]
+            job = db["eval_jobs"].find_one({"job_id": job_id, "share_token": token})
+            if not job:
+                print("Error: share token not valid.")
                 return Response(
-                    response=json.dumps({"response": f"Error: token not valid. Please login."}),
+                    response=json.dumps({"response": f"Error: share token not valid."}),
                     status=400,
                 )
             return f()
@@ -88,52 +133,46 @@ def say_hello():
 @app.route("/login", methods=["POST"])
 @cross_origin()
 def login():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.login(request, db)
 
 
 @app.route("/signup", methods=["POST"])
 @cross_origin()
 @verify_token(Role.ADMIN)
-def signup():
-    db = mongo_client["RMN"]
+def signup(user_id):
+    db = mongo["RMN"]
     return UserService.signup(request, db)
 
 
 @app.route("/updateSaveVerifiedImages", methods=["PUT"])
 @cross_origin()
 @verify_token()
-def update_user():
-    db = mongo_client["RMN"]
+def update_user(user_id):
+    db = mongo["RMN"]
     return UserService.update_save_verified_images(request, db)
 
 @app.route("/updateMoodleStructureInd", methods=["PUT"])
 @cross_origin()
 @verify_token()
-def update_moodle_structure_ind():
-    db = mongo_client["RMN"]
+def update_moodle_structure_ind(user_id):
+    db = mongo["RMN"]
     return UserService.update_moodle_structure_ind(request, db)
 
 
 @app.route("/password", methods=["POST"])
 @cross_origin()
 @verify_token()
-def change_password():
-    db = mongo_client["RMN"]
+def change_password(user_id):
+    db = mongo["RMN"]
     return UserService.change_password(request, db, True)
 
 
 @app.route("/evaluate", methods=["POST"])
 @cross_origin()
 @verify_token()
-def evaluate():
+def evaluate(user_id):
     request_form = request.form
-
-    if "user_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: user_id not provided."}),
-            status=400,
-        )
 
     if "template_id" not in request_form:
         return Response(
@@ -159,8 +198,6 @@ def evaluate():
             status=400,
         )
 
-    print(request.files)
-
     if not request.files:
         return Response(
             response=json.dumps({"response": f"Error: No files provided."}),
@@ -179,15 +216,13 @@ def evaluate():
             status=400,
         )
 
-    user_id = str(request_form["user_id"])
-
     template_id = str(request_form["template_id"])
     template_name = str(request_form["template_name"])
     job_name = str(request_form["job_name"])
     nb_pages = int(request_form["nb_pages"])
 
     # Define db and collection used
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
 
     job_id = str(uuid.uuid4())
@@ -207,7 +242,6 @@ def evaluate():
         "queued_time": datetime.utcnow(),
         "job_status": Job_Status.QUEUED.value,
         "retry": 0,
-        "max_questions": 1,
         "notes_file_id": notes_file_id,
         "zip_file_id": zip_file_id,
         "students_list": []
@@ -262,7 +296,6 @@ def evaluate():
             shutil.rmtree(str(folder_to_zip))
         else:
             with open(str(TEMP_FOLDER.joinpath(zip_file_name)), "wb") as f_out:
-                print("here")
                 file_content = zip_file.stream.read()
                 f_out.write(file_content)
 
@@ -271,16 +304,13 @@ def evaluate():
         return Response(response=f"Error: Failed to download files.", status=900)
 
     # Create SocketIO connection
-    sio = socketio.Client()
-    sio.connect(f"http://{socketio_host}:7000")
-
+    sio = socketio_client()
     sio.emit(
         "jobs_status",
         json.dumps(
             {"job_id": job_id, "status": Job_Status.QUEUED.value, "user_id": user_id}
         ),
     )
-
     sio.disconnect()
 
     thread = Thread(target=evaluate_thread,
@@ -305,15 +335,11 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
         file_name = str(TEMP_FOLDER.joinpath(notes_csv_file_name))
         storage.move_to(file_name, notes_file_id)
     except Exception as e:
-        print(e, "311")
+        print("Error when preparing job to be submitted for evaluation.")
+        print(e)
 
-        # Create SocketIO connection
-        sio = socketio.Client()
-        sio.connect(f"http://{socketio_host}:7000")
-
-        db = mongo_client["RMN"]
+        db = mongo["RMN"]
         collection_eval_jobs = db["eval_jobs"]
-
         collection_eval_jobs.update_one(
                 {"job_id": job_id},
                 {
@@ -323,6 +349,8 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
                 },
             )
 
+        # Create SocketIO connection
+        sio = socketio_client()
         sio.emit(
             "jobs_status",
             json.dumps(
@@ -337,77 +365,64 @@ def evaluate_thread(job_id, notes_file_id, zip_file_id, job, user_id, zip_file_n
         exit()
 
     # add to Redis Queue
-    queue_object = {
-        "job_type": "execution",
-        "job_id": job["job_id"],
-        "user_id": job["user_id"]
-    }
-    r.rpush("job_queue", json.dumps(queue_object))
+    redis.rpush("job_queue", json.dumps({"job_id": job["job_id"]}))
 
 
 @app.route("/template", methods=["POST"])
 @cross_origin()
 @verify_token()
-def create_template():
-    db = mongo_client["RMN"]
+def create_template(user_id):
+    db = mongo["RMN"]
     return TemplateService.create_template(request, db, storage)
 
 
 @app.route("/user/template", methods=["POST"])
 @cross_origin()
 @verify_token()
-def get_all_template_info():
-    db = mongo_client["RMN"]
+def get_all_template_info(user_id):
+    db = mongo["RMN"]
     return TemplateService.get_all_template_info(request, db)
 
 
 @app.route("/template/delete", methods=["POST"])
 @cross_origin()
 @verify_token()
-def delete_template():
-    db = mongo_client["RMN"]
+def delete_template(user_id):
+    db = mongo["RMN"]
     return TemplateService.delete_template(request, db, storage)
 
 
 @app.route("/template/info", methods=["POST"])
 @cross_origin()
 @verify_token()
-def get_template_info():
-    db = mongo_client["RMN"]
+def get_template_info(user_id):
+    db = mongo["RMN"]
     return TemplateService.get_template_info(request, db)
 
 
 @app.route("/template/download", methods=["POST"])
 @cross_origin()
 @verify_token()
-def download_template():
-    db = mongo_client["RMN"]
+def download_template(user_id):
+    db = mongo["RMN"]
     return TemplateService.download_template_file(request, db, storage)
 
 
 @app.route("/template/modify", methods=["POST"])
 @cross_origin()
 @verify_token()
-def modify_template():
-    db = mongo_client["RMN"]
+def modify_template(user_id):
+    db = mongo["RMN"]
     return TemplateService.change_template_info(request, db)
 
 
 @app.route("/jobs", methods=["POST"])
 @cross_origin()
 @verify_token()
-def get_jobs():
+def get_jobs(user_id):
     # Define db and collection used
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
-
-    request_form = request.form
-    if "user_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: user_id not provided."}),
-            status=400,
-        )
-    user_id = str(request_form["user_id"])
 
     # Get all jobs from DB
     jobs = [j for j in collection.find({"user_id": user_id})]
@@ -427,20 +442,28 @@ def get_jobs():
 
     # wake up workers in case some jobs died
     max_alive = datetime.utcnow() - timedelta(seconds=120)
+
+    def requeue(job_id, c_status, n_status):
+        print("Resubmit job", job_id)
+        # change status to ensure that a job is not resubmitted several times
+        res = collection.update_one(
+            {"job_id": job_id, "job_status": c_status},
+            {"$inc": {"retry": 1}, "$set": {"job_status": n_status}}
+        )
+        if res.matched_count > 0:
+           redis.lpush("job_queue", json.dumps({"job_id": job_id}))
+
     for job in jobs:
         if job["job_status"] == Job_Status.RUN.value and job["alive_time"] < max_alive:
+            if job["job_status"] == Job_Status.RUN.value:
+                requeue(job["job_id"], Job_Status.RUN.value, Job_Status.QUEUED.value)
+            else:
+                requeue(job["job_id"], Job_Status.FINALIZING.value, Job_Status.VALIDATION.value)
+
             res = collection.update_one(
                 {"job_id": job["job_id"], "job_status": Job_Status.RUN.value},
                 {"$inc": {"retry": 1}, "$set": {"job_status": Job_Status.QUEUED.value}}
             )
-            if res.matched_count > 0:
-                queue_object = {
-                    "job_type": "execution",
-                    "job_id": job["job_id"],
-                    "user_id": job["user_id"]
-                }
-                r.rpush("job_queue", json.dumps(queue_object))
-                break
 
     #
     return Response(response=json.dumps({"response": resp}), status=200)
@@ -448,18 +471,13 @@ def get_jobs():
 
 @app.route("/job", methods=["POST"])
 @cross_origin()
-@verify_token()
+@verify_share_token()
 def get_job():
     # Define db and collection used
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
 
     request_form = request.form
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400
-        )
     job_id = str(request_form["job_id"])
 
     # Get all jobs from DB
@@ -483,10 +501,86 @@ def get_job():
     return Response(response=json.dumps({"response": resp}), status=200)
 
 
+@app.route("/job/share", methods=["POST"])
+@cross_origin()
+@verify_token()
+def share_job(user_id):
+    # Define db and collection used
+    db = mongo["RMN"]
+    collection = db["eval_jobs"]
+
+    request_form = request.form
+    if "job_id" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: job_id not provided."}),
+            status=400
+        )
+    job_id = str(request_form["job_id"])
+
+    host = request.headers.get('Host')
+    if not host:
+        return Response(
+            response=json.dumps({"response": f"Error: Host is not defined in the headers."}),
+            status=400
+        )
+
+    # Get all jobs from DB
+    job = collection.find_one({"job_id": job_id, "user_id": user_id})
+    if job is None:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
+            status=400
+        )
+
+    if "share_token" not in job:
+        token = str(uuid.uuid4())
+        collection.update_one(
+            {"job_id": job_id},
+            {"$set": {"share_token": token}})
+    else:
+        token = job["share_token"]
+
+    share_url = f"https://{host}/task-validation/?job={job_id}&token={token}"
+
+    #
+    resp = {
+        "job_id": job["job_id"],
+        "share_url": share_url
+    }
+    return Response(response=json.dumps({"response": resp}), status=200)
+
+
+@app.route("/job/unshare", methods=["POST"])
+@cross_origin()
+@verify_token()
+def unshare_job(user_id):
+    # Define db and collection used
+    db = mongo["RMN"]
+    collection = db["eval_jobs"]
+
+    request_form = request.form
+    if "job_id" not in request_form:
+        return Response(
+            response=json.dumps({"response": f"Error: job_id not provided."}),
+            status=400
+        )
+    job_id = str(request_form["job_id"])
+
+    # Get all jobs from DB
+    res = collection.update_one({"job_id": job_id, "user_id": user_id}, {"$unset": {"share_token": ""}})
+    if res.matched_count == 0:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
+            status=400
+        )
+
+    return Response(response=json.dumps({"response": "OK"}), status=200)
+
+
 @app.route("/file/download", methods=["POST"])
 @cross_origin()
 @verify_token()
-def download_file():
+def download_file(user_id):
     #
     request_form = request.form
 
@@ -506,9 +600,6 @@ def download_file():
 
     #
     job_id = str(request_form["job_id"])
-
-    # TODO: validation pour job_id
-
     target_file = str(request_form["file"])
     try:
         target_file = Output_File(target_file)
@@ -527,11 +618,14 @@ def download_file():
         )
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     output_collection = db["jobs_output"]
-
-    #
-    output_files = output_collection.find_one({"job_id": job_id})
+    output_files = output_collection.find_one({"job_id": job_id, "user_id": user_id})
+    if not output_files:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
+            status=400
+        )
 
     #
     output_file_mapping_dict = {
@@ -546,8 +640,6 @@ def download_file():
 
     if target_file == Output_File.ZIP_FILE:
         zip_index = int(request_form["zip_index"])
-        print(output_files)
-        print(output_files[target_output_file])
         file_id = output_files[target_output_file][zip_index]
 
     if not os.path.exists(TEMP_FOLDER):
@@ -556,10 +648,7 @@ def download_file():
     # Save file to local
     filepath = str(TEMP_FOLDER.joinpath(file_id.split("/")[-1]))
     storage.copy_from(file_id, filepath)
-    print("file created")
-
     file_send = send_file(filepath)
-
     os.remove(filepath)
 
     return file_send
@@ -568,7 +657,7 @@ def download_file():
 @app.route("/job/batch/info", methods=["POST"])
 @cross_origin()
 @verify_token()
-def get_info_zip():
+def get_info_zip(user_id):
     request_form = request.form
 
     if "job_id" not in request_form:
@@ -580,12 +669,16 @@ def get_info_zip():
     job_id = str(request_form["job_id"])
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     output_collection = db["jobs_output"]
 
     #
-    output_files = output_collection.find_one({"job_id": job_id})
-    print(output_files)
+    output_files = output_collection.find_one({"job_id": job_id, "user_id": user_id})
+    if not output_files:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
+            status=400
+        )
     #
     resp = len(output_files["moodle_zip_id_list"])
 
@@ -595,21 +688,13 @@ def get_info_zip():
 
 @app.route("/documents", methods=["POST"])
 @cross_origin()
-@verify_token()
+@verify_share_token()
 def get_documents():
     request_form = request.form
-
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400,
-        )
-
-    #
     job_id = str(request_form["job_id"])
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["job_documents"]
 
     #
@@ -626,7 +711,8 @@ def get_documents():
             "total": doc["total"],
             "status": doc["status"],
             "exec_time": doc["execution_time"],
-            "n_total_doc": count
+            "n_total_doc": count,
+            "group": doc.get("group", "")
         }
         for doc in docs
     ]
@@ -637,15 +723,9 @@ def get_documents():
 
 @app.route("/documents/update", methods=["POST"])
 @cross_origin()
-@verify_token()
+@verify_share_token()
 def update_document():
     request_form = request.form
-
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400,
-        )
 
     if "document_index" not in request_form:
         return Response(
@@ -679,48 +759,36 @@ def update_document():
             status=400,
         )
 
-    print(request_form)
-
     #
     job_id = str(request_form["job_id"])
     document_index = int(request_form["document_index"])
     matricule = str(request_form["matricule"])
     subquestion_predictions = json.loads(request_form["subquestion_predictions"])
     total = float(request_form["total"])
-    status = Document_Status(str(request_form["status"]))
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["job_documents"]
 
     #
     collection.update_one(
         {"job_id": job_id, "document_index": document_index},
-        {
-            "$set": {
-                "matricule": matricule,
-                "subquestion_predictions": subquestion_predictions,
-                "total": total,
-                "status": Document_Status.VALIDATED.value,
-            }
-        },
-    )
+        {"$set": {
+            "matricule": matricule,
+            "subquestion_predictions": subquestion_predictions,
+            "total": total,
+            "status": Document_Status.VALIDATED.value,
+        }
+    })
 
     return Response(response=json.dumps({"response": "OK"}), status=200)
 
 
 @app.route("/document/download", methods=["POST"])
 @cross_origin()
-@verify_token()
+@verify_share_token()
 def download_document():
-    #
     request_form = request.form
-
-    if "job_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: job_id not provided."}),
-            status=400,
-        )
 
     if "document_index" not in request_form:
         return Response(
@@ -733,13 +801,11 @@ def download_document():
     document_index = int(request_form["document_index"])
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     document_collection = db["job_documents"]
 
     #
-    document_file = document_collection.find_one(
-        {"job_id": job_id, "document_index": document_index}
-    )
+    document_file = document_collection.find_one({"job_id": job_id, "document_index": document_index})
     if document_file is None:
         return Response(
             response=json.dumps({"response": f"No document found!"}),
@@ -748,7 +814,6 @@ def download_document():
 
     # Save file to local
     file_id = str(document_file["image_id"])
-    print("file_id", file_id)
     storage.copy_from(file_id, file_id)
     file_send = send_file(file_id)
 
@@ -768,7 +833,7 @@ def download_document():
 @app.route("/job/validate", methods=["POST"])
 @cross_origin()
 @verify_token()
-def validate():
+def validate(user_id):
     #
     request_form = request.form
 
@@ -778,56 +843,30 @@ def validate():
             response=json.dumps({"response": f"Error: job_id not provided."}),
             status=400,
         )
-    if "user_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: user_id not provided."}),
-            status=400,
-        )
-
-    if "moodle_ind" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: moodle_ind not provided."}),
-            status=400,
-        )
 
     #
     job_id = str(request_form["job_id"])
-    user_id = str(request_form["user_id"])
-    moodle_ind = request_form["moodle_ind"]
 
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["job_documents"]
-    collection_eval_jobs = db["eval_jobs"]
-
-    # Set Job status to VALIDATION
-    collection_eval_jobs.update_one(
-        {"job_id": job_id}, {"$set": {"job_status": Job_Status.VALIDATING.value}}
-    )
 
     # Create SocketIO connection
-    sio = socketio.Client()
-    sio.connect(f"http://{socketio_host}:7000")
-
+    sio = socketio_client()
     sio.emit(
         "jobs_status",
         json.dumps(
             {
                 "job_id": job_id,
-                "status": Job_Status.VALIDATING.value,
+                "status": Job_Status.FINALIZING.value,
                 "user_id": user_id,
             }
         ),
     )
+    sio.disconnect()
 
     # add to Redis Queue
-    queue_object = {
-        "job_type": "validation",
-        "job_id": job_id,
-        "user_id": user_id,
-        "moodle_ind": moodle_ind,
-    }
     try:
-        r.rpush("job_queue", json.dumps(queue_object))
+        redis.rpush("job_queue", json.dumps({"job_id": job_id}))
     except Exception as e:
         print(e)
         print("Failed to push job to Redis Queue.")
@@ -880,7 +919,7 @@ def delete_job(job_id):
         print(e)
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     collection = db["job_documents"]
     collection_eval_jobs = db["eval_jobs"]
     collection_output = db["jobs_output"]
@@ -906,7 +945,7 @@ def delete_job(job_id):
 @app.route("/job/delete", methods=["POST"])
 @cross_origin()
 @verify_token()
-def delete():
+def delete(user_id):
     request_form = request.form
 
     if "job_id" not in request_form:
@@ -917,14 +956,23 @@ def delete():
 
     #
     job_id = str(request_form["job_id"])
+
+    db = mongo["RMN"]
+    collection = db["eval_jobs"]
+    if collection.count_documents({"user_id": user_id, "job_id": job_id}) == 0:
+        return Response(
+            response=json.dumps({"response": f"Error: job {job_id} for user {user_id} doesn't exist."}),
+            status=400
+        )
+
     delete_job(job_id)
 
     #
     return Response(response=json.dumps({"response": "OK"}), status=200)
 
 
-def delete_old_jobs(n_days_old = 0, user_id = None):
-    db = mongo_client["RMN"]
+def delete_old_jobs(n_days_old=0, user_id=None):
+    db = mongo["RMN"]
     collection = db["eval_jobs"]
     r = {} if user_id is None else {"user_id": user_id}
     jobs = collection.find(r)
@@ -969,7 +1017,7 @@ def admin_delete_jobs():
 @app.route("/admin/signup", methods=["POST"])
 @cross_origin()
 def admin_signup():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.signup(request, db)
 
 
@@ -983,12 +1031,13 @@ def admin_delete_tokens():
     elif "user_id" in request_form:
         user_id = str(request_form["user_id"])
     n_days_old = int(request_form["n_days_old"]) if "n_days_old" in request_form else 0
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     UserService.delete_tokens(user_id, n_days_old, db)
     return Response(
         response=json.dumps({"response": "OK"}),
         status=200
     )
+
 
 @app.route("/admin/delete/user", methods=["POST"])
 @cross_origin()
@@ -1009,7 +1058,7 @@ def admin_delete_user():
     delete_old_jobs(user_id=user_id)
 
     #
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     TemplateService.delete_templates(user_id, db, storage)
     UserService.delete(user_id, db)
 
@@ -1020,7 +1069,7 @@ def admin_delete_user():
 @app.route("/admin/users", methods=["POST"])
 @cross_origin()
 def admin_users():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     all_users = UserService.users(db)
     return Response(response=json.dumps({"response": "OK", "users": all_users}), status=200)
 
@@ -1028,21 +1077,15 @@ def admin_users():
 @app.route("/admin/change_password", methods=["POST"])
 @cross_origin()
 def admin_change_password():
-    db = mongo_client["RMN"]
+    db = mongo["RMN"]
     return UserService.change_password(request, db, False)
 
 
 @app.route("/front_page", methods=["POST"])
 @cross_origin()
 @verify_token()
-def front_page():
+def front_page(user_id):
     request_form = request.form
-
-    if "user_id" not in request_form:
-        return Response(
-            response=json.dumps({"response": f"Error: user_id not provided."}),
-            status=400,
-        )
 
     if "suffix" not in request_form:
         return Response(
@@ -1075,9 +1118,6 @@ def front_page():
     suffix = str(request_form["suffix"])
     moodle_zip = request.files.get("moodle_zip")
     latex_front_page = request.files.get("latex_front_page")
-
-    print(user_id)
-    print(suffix)
 
     if not os.path.exists(FRONT_PAGE_TEMP_FOLDER):
         os.makedirs(FRONT_PAGE_TEMP_FOLDER)
