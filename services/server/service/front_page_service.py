@@ -16,28 +16,32 @@ class FrontPageHandler:
     def addFrontPages(
         self, work_directory, input_folder, suffix, latex_front_page, latex_input_file
     ):
-        folders = os.listdir(input_folder)
-        for folder in folders:
-            folder_path = os.path.join(input_folder, folder)
-            if os.path.isfile(folder_path):
-                os.remove(folder_path)
+        for root, dirs, files in os.walk(input_folder):
+            # try to split name based on: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
+            folder = root.rsplit("/", 1)[-1]
+            split_folder = folder.split("_")
+            if len(split_folder) < 4:
+                # remove all files
+                for f in files:
+                    os.remove(os.path.join(root, f))
+                # if no directory, remove root
+                if len(dirs) == 0:
+                    # remove folder
+                    shutil.rmtree(root)
                 continue
 
-            files = os.listdir(folder_path)
             if len(files) != 1:
                 raise ValueError(
                     "Subfolder %s does not contain only one file, but %d files"
-                    % (folder, len(files))
+                    % (root, len(files))
                 )
-
-            # pdf file
-            file = files[0]
-            file_path = os.path.join(folder_path, file)
 
             # rename it
             # use folder name: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
             try:
-                split_folder = folder.split("_")
+                # pdf file
+                file = files[0]
+                file_path = os.path.join(root, file)
                 fullname = split_folder[0]
                 matricule = split_folder[2]
                 tempname = "_".join(fullname.split(" "))
@@ -60,7 +64,13 @@ class FrontPageHandler:
                 raise
 
             # remove folder
-            shutil.rmtree(str(folder_path))
+            shutil.rmtree(root)
+
+        root, dirs, files = next(os.walk(input_folder))
+        for d in dirs:
+            # remove any remaining folders
+            folder_path = os.path.join(root, d)
+            shutil.rmtree(folder_path)
 
     def copy_file_with_front_page(
         self,
