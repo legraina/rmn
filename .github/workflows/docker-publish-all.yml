@@ -17,21 +17,25 @@ jobs:
     with:
       image: rmni/executor
       context: ./services/executor
+    secrets: inherit
 
   push_server_to_dockerhub:
     uses: ./.github/workflows/docker-publish.yml
     with:
       image: rmni/server
       context: ./services/server
+    secrets: inherit
 
   push_webapp_to_dockerhub:
     uses: ./.github/workflows/docker-publish.yml
     with:
       image: rmni/webapp
       context: ./services/webapp
+    secrets: inherit
 
   push_socketio_to_dockerhub:
     uses: ./.github/workflows/docker-publish.yml
     with:
       image: rmni/socketio
       context: ./services/socketIO
+    secrets: inherit
