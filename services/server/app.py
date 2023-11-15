@@ -12,6 +12,8 @@ from io import FileIO
 from PyPDF2 import PdfWriter, PdfReader
 from service.front_page_service import FrontPageHandler
 from threading import Thread
+from zipfile import ZipFile
+
 
 import uuid
 import os
@@ -1145,7 +1147,8 @@ def front_page(user_id):
     if not os.path.exists(content_temp_folder):
         os.makedirs(content_temp_folder)
 
-    shutil.unpack_archive(moodle_zip_filepath, content_temp_folder)
+    with ZipFile(moodle_zip_filepath, 'r') as zip_ref:
+        zip_ref.extractall(content_temp_folder)
     os.remove(moodle_zip_filepath)
 
     latex_front_page.save(FileIO(latex_front_page_filepath, "wb"))
