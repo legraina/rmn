@@ -147,7 +147,8 @@ if __name__ == "__main__":
                 file_p = str(VALIDATE_FOLDER.joinpath(moodle_filename))
                 storage.copy_from(id, file_p)
                 # validated_tmp_folder/copies/[1.pdf, 2.pdf]
-                shutil.unpack_archive(file_p, tmp_copies_folder_path)
+                with ZipFile(file_p, 'r') as zip_ref:
+                    zip_ref.extractall(tmp_copies_folder_path)
                 curr_moodle_folder_path = tmp_copies_folder_path
 
                 if len(os.listdir(str(curr_moodle_folder_path))) == 0:

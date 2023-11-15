@@ -30,7 +30,7 @@ spec:
             com.docker.project: webapp
     spec:
         containers:
-            - image: rmni/webapp:latest
+            - image: rmni/webapp:main
               name: webapp
               imagePullPolicy: Always
               ports:

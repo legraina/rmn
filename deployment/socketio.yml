@@ -30,7 +30,7 @@ spec:
             com.docker.project: socketio
     spec:
         containers:
-            - image: rmni/socketio
+            - image: rmni/socketio:main
               name: socketio
               ports:
                 - containerPort: 7000
