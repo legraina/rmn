@@ -20,21 +20,29 @@ class FrontPageHandler:
             # try to split name based on: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
             folder = root.rsplit("/", 1)[-1]
             split_folder = folder.split("_")
-            if len(split_folder) < 4:
-                # remove all files
-                for f in files:
-                    os.remove(os.path.join(root, f))
-                # if no directory, remove root
-                if len(dirs) == 0:
+            # if folder start by _, ignore whole directory
+            ignore_folder = split_folder[0] == ""
+            if len(split_folder) < 4 or ignore_folder:
+                # if no directory or ignore this folder, remove root
+                if len(dirs) == 0 or ignore_folder:
                     # remove folder
                     shutil.rmtree(root)
+                else:
+                    # remove just all files
+                    for f in files:
+                        os.remove(os.path.join(root, f))
                 continue
 
             if len(files) != 1:
-                raise ValueError(
+                print(
                     "Subfolder %s does not contain only one file, but %d files"
                     % (root, len(files))
                 )
+
+                if not files:
+                    # remove folder and continue
+                    shutil.rmtree(root)
+                    continue
 
             # rename it
             # use folder name: "Nom complet_Identifiant_Matricule_assignsubmission_file_"
@@ -61,7 +69,7 @@ class FrontPageHandler:
                 )
             except:
                 print(f"Error while processing {folder}")
-                raise
+                pass
 
             # remove folder
             shutil.rmtree(root)
