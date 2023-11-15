@@ -23,7 +23,7 @@ spec:
               readOnly: no
         containers:
           - name: executor
-            image: rmni/executor:latest
+            image: rmni/executor:main
             imagePullPolicy: Always
             ports:
               - containerPort: 5000
