@@ -500,9 +500,6 @@ def grade_files(
             else:
                 m = m.group()
 
-            if m == '2182803' or m == '2091403' or m == '2054755':
-                bb = 1
-
             # try to recognize each grade and verify the total
             grays = gray_images(file, [0], straighten=False, shape=shape)
             if grays is None:
@@ -658,10 +655,11 @@ def grade_files(
                 # fix previous documents that were not with the right number of questions
                 max_question = get_max_question(max_grade, max_nb_questions)
                 for index, doc_questions in n_questions.items():
-                    changed, doc_questions = try_fix_n_questions(max_nb_questions, doc_questions)
+                    n_doc_q = len(doc_questions)
+                    doc_questions = try_fix_n_questions(max_nb_questions, doc_questions)
                     changed2, doc_questions = try_fix_questions(max_question, doc_questions)
 
-                    if changed or changed2:
+                    if len(doc_questions) != n_doc_q or changed2:
                         n_questions[index] = doc_questions
                         # update document
                         subquestions = {
